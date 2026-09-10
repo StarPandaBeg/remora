@@ -1,0 +1,39 @@
+{
+    "name": "remora",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "description": "Remora - Tool to organize lections, meetings, conversations and so on",
+    "scripts": {
+        "build": "tsc -b",
+        "clean": "tsc -b --clean",
+        "core:dev": "npm run dev --workspace=@remora/core",
+        "core:debug": "npm run debug --workspace=@remora/core",
+        "lint": "eslint .",
+        "lint:fix": "eslint . --fix",
+        "format": "prettier . --write",
+        "format:check": "prettier . --check",
+        "core:start": "npm run start --workspace=@remora/core",
+        "typecheck": "tsc -b --noEmit --pretty"
+    },
+    "author": "StarPanda",
+    "license": "MIT",
+    "engines": {
+        "node": ">=22"
+    },
+    "packageManager": "npm@10.9.8",
+    "workspaces": [
+        "packages/*"
+    ],
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@types/node": "^22.0.0",
+        "eslint": "^10.8.1",
+        "eslint-config-prettier": "^10.1.8",
+        "globals": "^17.11.0",
+        "prettier": "^3.9.6",
+        "prettier-plugin-organize-imports": "^4.3.0",
+        "typescript": "^6.0.3",
+        "typescript-eslint": "^8.67.0"
+    }
+}
