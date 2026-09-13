@@ -1,15 +1,39 @@
 services:
-  remora-db:
-    image: pgvector/pgvector:pg14
-    container_name: remora-db
-    environment:
-      POSTGRES_USER: remora
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: remora
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
+    remora-db:
+        image: pgvector/pgvector:pg14
+        container_name: remora-db
+        environment:
+            POSTGRES_USER: remora
+            POSTGRES_PASSWORD: password
+            POSTGRES_DB: remora
+        ports:
+            - '5432:5432'
+        volumes:
+            - pgdata:/var/lib/postgresql/data
+        healthcheck:
+            test: ['CMD-SHELL', 'pg_isready -U remora -d remora']
+            interval: 5s
+            timeout: 5s
+            retries: 10
+
+    remora-minio:
+        image: firstfinger/minio:latest
+        container_name: remora-minio
+        environment:
+            MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-remora}
+            MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-remora-development-secret}
+        ports:
+            - '9000:9000'
+            - '9001:9001'
+        volumes:
+            - miniodata:/data
+        healthcheck:
+            test:
+                ['CMD', 'curl', '-f', 'http://localhost:9000/minio/health/live']
+            interval: 5s
+            timeout: 5s
+            retries: 10
 
 volumes:
-  pgdata:
+    pgdata:
+    miniodata:

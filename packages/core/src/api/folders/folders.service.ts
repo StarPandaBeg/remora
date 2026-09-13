@@ -24,10 +24,10 @@ export class FolderServiceError extends Error {
 }
 
 export function createFolderService(
-    repository: ReturnType<typeof createFolderRepository>,
+    folderRepository: ReturnType<typeof createFolderRepository>,
 ) {
     const getTree = async (params: { depth: number; rootId?: number }) => {
-        const rows = await repository.findTree(params)
+        const rows = await folderRepository.findTree(params)
         return buildTree(rows, {
             getId: (folder) => folder.id,
             getParentId: (folder) => folder.parentId,
@@ -35,7 +35,7 @@ export function createFolderService(
     }
 
     const ensureFolderExists = async (id: number, role = 'Folder') => {
-        const folder = await repository.findById(id)
+        const folder = await folderRepository.findById(id)
 
         if (!folder) {
             throw new FolderServiceError(
@@ -53,14 +53,14 @@ export function createFolderService(
             await ensureFolderExists(input.parentId, 'Parent folder')
         }
 
-        return await repository.create({
+        return await folderRepository.create({
             ...input,
             parentId: input.parentId ?? null,
         })
     }
 
     const update = async (id: number, input: UpdateFolderInput) => {
-        const folder = await repository.update(id, input)
+        const folder = await folderRepository.update(id, input)
 
         if (!folder) {
             throw new FolderServiceError(
@@ -77,7 +77,10 @@ export function createFolderService(
         await ensureFolderExists(id)
 
         if (parentId !== null) {
-            if (parentId === id || (await repository.contains(id, parentId))) {
+            if (
+                parentId === id ||
+                (await folderRepository.contains(id, parentId))
+            ) {
                 throw new FolderServiceError(
                     'FOLDER_MOVE_CYCLE',
                     'A folder cannot be moved into itself or its descendant',
@@ -88,11 +91,11 @@ export function createFolderService(
             await ensureFolderExists(parentId, 'Parent folder')
         }
 
-        return await repository.move(id, parentId)
+        return await folderRepository.move(id, parentId)
     }
 
     const remove = async (id: number) => {
-        const folder = await repository.remove(id)
+        const folder = await folderRepository.remove(id)
 
         if (!folder) {
             throw new FolderServiceError(

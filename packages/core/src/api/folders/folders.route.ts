@@ -7,8 +7,6 @@ import type {
 import fastifyPlugin from 'fastify-plugin'
 import { z } from 'zod/v4'
 import { folderDtoSchema, toDto } from './folders.dto.ts'
-import { createFolderRepository } from './folders.model.ts'
-import { createFolderService } from './folders.service.ts'
 
 export const getFoldersQuerySchema = z.object({
     depth: z.coerce
@@ -56,9 +54,9 @@ type MoveFolderBody = z.output<typeof moveFolderBodySchema>
 export async function getAllHandler(
     request: FastifyRequest<{ Querystring: GetFoldersQuery }>,
 ) {
-    const folderRepository = createFolderRepository(request.server.db)
-    const foldersService = createFolderService(folderRepository)
-    const tree = await foldersService.getTree({ depth: request.query.depth })
+    const tree = await request.server.services.folders.getTree({
+        depth: request.query.depth,
+    })
 
     return tree.map(toDto)
 }
@@ -67,9 +65,7 @@ export async function createHandler(
     request: FastifyRequest<{ Body: CreateFolderBody }>,
     reply: FastifyReply,
 ) {
-    const repository = createFolderRepository(request.server.db)
-    const service = createFolderService(repository)
-    const folder = await service.create(request.body)
+    const folder = await request.server.services.folders.create(request.body)
 
     return reply.code(201).send(toDto(folder))
 }
@@ -80,9 +76,10 @@ export async function updateHandler(
         Params: FolderParams
     }>,
 ) {
-    const repository = createFolderRepository(request.server.db)
-    const service = createFolderService(repository)
-    const folder = await service.update(request.params.id, request.body)
+    const folder = await request.server.services.folders.update(
+        request.params.id,
+        request.body,
+    )
 
     return toDto(folder)
 }
@@ -93,9 +90,10 @@ export async function moveHandler(
         Params: FolderParams
     }>,
 ) {
-    const repository = createFolderRepository(request.server.db)
-    const service = createFolderService(repository)
-    const folder = await service.move(request.params.id, request.body.parentId)
+    const folder = await request.server.services.folders.move(
+        request.params.id,
+        request.body.parentId,
+    )
 
     return toDto(folder)
 }
@@ -104,9 +102,7 @@ export async function deleteHandler(
     request: FastifyRequest<{ Params: FolderParams }>,
     reply: FastifyReply,
 ) {
-    const repository = createFolderRepository(request.server.db)
-    const service = createFolderService(repository)
-    await service.remove(request.params.id)
+    await request.server.services.folders.remove(request.params.id)
 
     return reply.code(204).send()
 }

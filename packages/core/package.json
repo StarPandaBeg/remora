@@ -27,12 +27,14 @@
     "author": "StarPanda",
     "license": "MIT",
     "dependencies": {
+        "@fastify/multipart": "^10.1.1",
         "@fastify/swagger": "^9.8.1",
         "@fastify/swagger-ui": "^6.1.1",
         "@fastify/type-provider-zod": "^1.0.0",
         "drizzle-orm": "^1.0.0-rc.4",
         "fastify": "^5.12.3",
         "fastify-plugin": "^6.0.0",
+        "minio": "^8.0.7",
         "pg": "^8.23.0",
         "zod": "^4.6.4"
     },

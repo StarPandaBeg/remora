@@ -1,5 +1,5 @@
 import { eq, sql } from 'drizzle-orm'
-import type { AppDatabase } from '../../database/index.ts'
+import type { DbExecutor } from '../../database/index.ts'
 import { folders, type Folder } from '../../database/schema.ts'
 
 export type FolderTreeRow = Folder & { depth: number }
@@ -11,7 +11,7 @@ export type UpdateFolderInput = Partial<
     Pick<typeof folders.$inferInsert, 'description' | 'name'>
 >
 
-export function createFolderRepository(db: AppDatabase) {
+export function createFolderRepository(db: DbExecutor) {
     const listAll = async () => {
         return await db.query.folders.findMany()
     }

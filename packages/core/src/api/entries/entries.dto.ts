@@ -1,6 +1,6 @@
 import { z } from 'zod/v4'
 
-import type { Entry } from '../../database/schema.ts'
+import type { Entry, EntryMetadata } from '../../database/schema.ts'
 import type { EntryTreeNode } from './entries.service.ts'
 
 export interface EntryDto {
@@ -9,6 +9,7 @@ export interface EntryDto {
     name: string
     type: Entry['type']
     content: string | null
+    metadata: EntryMetadata
 }
 
 export type EntryTreeDto =
@@ -26,7 +27,9 @@ export type EntryTreeDto =
           id: number
           parentId: number
           name: string
+          type: Entry['type']
           content: string | null
+          metadata: EntryMetadata
           depth: number
       }
 
@@ -34,8 +37,9 @@ export const entryDtoSchema: z.ZodType<EntryDto> = z.object({
     id: z.number().int().positive(),
     folderId: z.number().int().positive(),
     name: z.string(),
-    type: z.enum(['note']),
+    type: z.enum(['note', 'video_record']),
     content: z.string().nullable(),
+    metadata: z.record(z.string(), z.unknown()),
 })
 
 export const entryTreeDtoSchema: z.ZodType<EntryTreeDto> = z.lazy(() =>
@@ -54,7 +58,9 @@ export const entryTreeDtoSchema: z.ZodType<EntryTreeDto> = z.lazy(() =>
             id: z.number().int().positive(),
             parentId: z.number().int().positive(),
             name: z.string(),
+            type: z.enum(['note', 'video_record']),
             content: z.string().nullable(),
+            metadata: z.record(z.string(), z.unknown()),
             depth: z.number().int().min(0),
         }),
     ]),
@@ -70,6 +76,7 @@ export function toEntryDto(entry: Entry): EntryDto {
         name: entry.name,
         type: entry.type,
         content: entry.content,
+        metadata: entry.metadata,
     }
 }
 
@@ -80,7 +87,9 @@ export function toEntryTreeDto(node: EntryTreeNode): EntryTreeDto {
             id: node.id,
             parentId: node.parentId,
             name: node.name,
+            type: node.type,
             content: node.content,
+            metadata: node.metadata,
             depth: node.depth,
         }
     }

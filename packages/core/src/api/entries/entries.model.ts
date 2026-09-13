@@ -1,16 +1,13 @@
 import { eq, sql } from 'drizzle-orm'
 
-import type { AppDatabase } from '../../database/index.ts'
-import { entries, folders, type Entry } from '../../database/schema.ts'
-
-export type CreateNoteInput = {
-    type: 'note'
-    folderId: number
-    name: string
-    content: string
-}
-
-export type CreateEntryInput = CreateNoteInput
+import type { DbExecutor } from '../../database/index.ts'
+import {
+    entries,
+    folders,
+    type Entry,
+    type EntryCreate,
+    type EntryMetadata,
+} from '../../database/schema.ts'
 
 export type UpdateEntryInput = Partial<
     Pick<typeof entries.$inferInsert, 'content' | 'name'>
@@ -31,15 +28,17 @@ export type EntryTreeRow = {
     id: number
     parentId: number
     name: string
+    type: Entry['type']
     description: null
     content: string | null
+    metadata: EntryMetadata
     depth: number
 }
 
 export type TreeRow = FolderTreeRow | EntryTreeRow
 
-export function createEntryRepository(db: AppDatabase) {
-    const create = async (values: CreateEntryInput) => {
+export function createEntryRepository(db: DbExecutor) {
+    const create = async (values: EntryCreate) => {
         const [entry] = await db.insert(entries).values(values).returning()
         return entry
     }
@@ -120,6 +119,8 @@ export function createEntryRepository(db: AppDatabase) {
                     ${folders.parentId} AS "parentId",
                     ${folders.name} AS "name",
                     ${folders.description} AS "description",
+                    NULL::"entryType" AS "type",
+                    NULL::jsonb AS "metadata",
                     0::integer AS "depth"
                 FROM ${folders}
                 WHERE ${
@@ -135,6 +136,8 @@ export function createEntryRepository(db: AppDatabase) {
                     ${folders.parentId} AS "parentId",
                     ${folders.name} AS "name",
                     ${folders.description} AS "description",
+                    NULL::"entryType" AS "type",
+                    NULL::jsonb AS "metadata",
                     folder_tree."depth" + 1 AS "depth"
                 FROM ${folders}
                 INNER JOIN folder_tree
@@ -148,6 +151,8 @@ export function createEntryRepository(db: AppDatabase) {
                     folder_tree."name" AS "name",
                     folder_tree."description" AS "description",
                     NULL::text AS "content",
+                    NULL::"entryType" AS "type",
+                    NULL::jsonb AS "metadata",
                     folder_tree."depth" AS "depth"
                 FROM folder_tree
 
@@ -160,6 +165,8 @@ export function createEntryRepository(db: AppDatabase) {
                     ${entries.name} AS "name",
                     NULL::text AS "description",
                     ${entries.content} AS "content",
+                    ${entries.type} AS "type",
+                    ${entries.metadata} AS "metadata",
                     folder_tree."depth" + 1 AS "depth"
                 FROM ${entries}
                 INNER JOIN folder_tree

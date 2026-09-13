@@ -4,12 +4,14 @@ import { z } from 'zod/v4'
 
 import entriesApi from './api/entries/entries.route.ts'
 import foldersApi from './api/folders/folders.route.ts'
+import tasksApi from './api/tasks/tasks.route.ts'
 
 const routes: FastifyPluginCallback = (fastify, _options, done) => {
     fastify.register(
         (api, _apiOptions, apiDone) => {
             api.register(entriesApi)
             api.register(foldersApi)
+            api.register(tasksApi)
             apiDone()
         },
         { prefix: '/v1' },
