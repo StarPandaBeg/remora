@@ -1,6 +1,6 @@
 type TreeKey = string | number
 
-type TreeNode<T> = T & {
+export type TreeNode<T> = T & {
     children: TreeNode<T>[]
 }
 

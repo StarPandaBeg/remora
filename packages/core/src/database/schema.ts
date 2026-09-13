@@ -23,17 +23,25 @@ export const folders = t.snakeCase.table(
 )
 export type Folder = typeof folders.$inferSelect
 
-export const entries = t.snakeCase.table('entries', {
-    id: t.serial().primaryKey(),
-    folderId: t.integer().references(() => folders.id, {
-        onDelete: 'cascade',
-    }),
-    name: t.varchar().notNull(),
-    type: entryType().notNull(),
-    content: t.text(),
-    metadata: t.jsonb().default('{}'),
-    ...timestamps,
-})
+export const entries = t.snakeCase.table(
+    'entries',
+    {
+        id: t.serial().primaryKey(),
+        folderId: t
+            .integer()
+            .notNull()
+            .references(() => folders.id, {
+                onDelete: 'cascade',
+            }),
+        name: t.varchar().notNull(),
+        type: entryType().notNull(),
+        content: t.text(),
+        metadata: t.jsonb().default('{}'),
+        ...timestamps,
+    },
+    (table) => [t.index('entries_folder_id_idx').on(table.folderId)],
+)
+export type Entry = typeof entries.$inferSelect
 
 export const relations = defineRelations({ folders, entries }, (r) => ({
     folders: {

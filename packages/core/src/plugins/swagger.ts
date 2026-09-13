@@ -18,6 +18,10 @@ export default fastifyPlugin(
                 },
                 tags: [
                     {
+                        name: 'entries',
+                        description: 'Entry and combined tree management',
+                    },
+                    {
                         name: 'folders',
                         description: 'Folder tree management',
                     },

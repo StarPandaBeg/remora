@@ -2,11 +2,13 @@ import type { FastifyPluginCallback } from 'fastify'
 import fastifyPlugin from 'fastify-plugin'
 import { z } from 'zod/v4'
 
+import entriesApi from './api/entries/entries.route.ts'
 import foldersApi from './api/folders/folders.route.ts'
 
 const routes: FastifyPluginCallback = (fastify, _options, done) => {
     fastify.register(
         (api, _apiOptions, apiDone) => {
+            api.register(entriesApi)
             api.register(foldersApi)
             apiDone()
         },
