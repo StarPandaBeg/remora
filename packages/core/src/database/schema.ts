@@ -12,7 +12,9 @@ export const folders = t.snakeCase.table(
     'folders',
     {
         id: t.serial().primaryKey(),
-        parentId: t.integer().references((): t.AnyPgColumn => folders.id),
+        parentId: t.integer().references((): t.AnyPgColumn => folders.id, {
+            onDelete: 'cascade',
+        }),
         name: t.varchar().notNull(),
         description: t.text(),
         ...timestamps,
@@ -23,7 +25,9 @@ export type Folder = typeof folders.$inferSelect
 
 export const entries = t.snakeCase.table('entries', {
     id: t.serial().primaryKey(),
-    folderId: t.integer().references(() => folders.id),
+    folderId: t.integer().references(() => folders.id, {
+        onDelete: 'cascade',
+    }),
     name: t.varchar().notNull(),
     type: entryType().notNull(),
     content: t.text(),

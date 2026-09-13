@@ -5,6 +5,7 @@ import {
 import type { FastifyPluginAsync } from 'fastify'
 
 import dbPlugin from './plugins/db.ts'
+import swaggerPlugin from './plugins/swagger.ts'
 import registerRoutes from './routes.ts'
 
 export interface AppOptions {
@@ -18,6 +19,7 @@ const app: FastifyPluginAsync<AppOptions> = (fastify) => {
     fastify.setSerializerCompiler(serializerCompiler)
 
     fastify.register(dbPlugin)
+    fastify.register(swaggerPlugin)
 
     fastify.register(registerRoutes)
     return Promise.resolve()

@@ -1,5 +1,6 @@
 import type { FastifyPluginCallback } from 'fastify'
 import fastifyPlugin from 'fastify-plugin'
+import { z } from 'zod/v4'
 
 import foldersApi from './api/folders/folders.route.ts'
 
@@ -12,8 +13,32 @@ const routes: FastifyPluginCallback = (fastify, _options, done) => {
         { prefix: '/v1' },
     )
 
-    fastify.get('/', () => 'Welcome to Remora API')
-    fastify.get('/health', () => ({ status: 'ok' }))
+    fastify.get(
+        '/',
+        {
+            schema: {
+                response: {
+                    200: z.string(),
+                },
+                summary: 'API welcome message',
+                tags: ['system'],
+            },
+        },
+        () => 'Welcome to Remora API',
+    )
+    fastify.get(
+        '/health',
+        {
+            schema: {
+                response: {
+                    200: z.object({ status: z.literal('ok') }),
+                },
+                summary: 'Check service health',
+                tags: ['system'],
+            },
+        },
+        () => ({ status: 'ok' }),
+    )
 
     done()
 }

@@ -1,8 +1,15 @@
-import { sql } from 'drizzle-orm'
+import { eq, sql } from 'drizzle-orm'
 import type { AppDatabase } from '../../database/index.ts'
 import { folders, type Folder } from '../../database/schema.ts'
 
 export type FolderTreeRow = Folder & { depth: number }
+export type CreateFolderInput = Pick<
+    typeof folders.$inferInsert,
+    'description' | 'name' | 'parentId'
+>
+export type UpdateFolderInput = Partial<
+    Pick<typeof folders.$inferInsert, 'description' | 'name'>
+>
 
 export function createFolderRepository(db: AppDatabase) {
     const listAll = async () => {
@@ -56,5 +63,87 @@ export function createFolderRepository(db: AppDatabase) {
         return result.rows
     }
 
-    return { listAll, findTree }
+    const findById = async (id: number) => {
+        return await db.query.folders.findFirst({
+            where: {
+                id,
+            },
+        })
+    }
+
+    const create = async (values: CreateFolderInput) => {
+        const [folder] = await db.insert(folders).values(values).returning()
+        return folder
+    }
+
+    const update = async (id: number, values: UpdateFolderInput) => {
+        const [folder] = await db
+            .update(folders)
+            .set({
+                ...values,
+                updatedAt: new Date(),
+            })
+            .where(eq(folders.id, id))
+            .returning()
+
+        return folder
+    }
+
+    const move = async (id: number, parentId: number | null) => {
+        const [folder] = await db
+            .update(folders)
+            .set({
+                parentId,
+                updatedAt: new Date(),
+            })
+            .where(eq(folders.id, id))
+            .returning()
+
+        return folder
+    }
+
+    const contains = async (id: number, descendantId: number) => {
+        const result = await db.execute<{ exists: boolean }>(sql`
+            WITH RECURSIVE descendants AS (
+                SELECT ${folders.id} AS "id"
+                FROM ${folders}
+                WHERE ${folders.parentId} = ${id}
+
+                UNION ALL
+
+                SELECT child.${sql.identifier(folders.id.name)} AS "id"
+                FROM ${folders} AS child
+                INNER JOIN descendants
+                    ON child.${sql.identifier(folders.parentId.name)} = descendants."id"
+            )
+
+            SELECT EXISTS(
+                SELECT 1
+                FROM descendants
+                WHERE "id" = ${descendantId}
+            ) AS "exists"
+        `)
+
+        return result.rows[0]?.exists ?? false
+    }
+
+    const remove = async (id: number) => {
+        const [folder] = await db
+            .delete(folders)
+            .where(eq(folders.id, id))
+            .returning()
+
+        return folder
+    }
+
+    return {
+        contains,
+        create,
+        findById,
+        findTree,
+        listAll,
+        move,
+        remove,
+        update,
+    }
 }
