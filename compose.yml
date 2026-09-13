@@ -1,0 +1,15 @@
+services:
+  remora-db:
+    image: pgvector/pgvector:pg14
+    container_name: remora-db
+    environment:
+      POSTGRES_USER: remora
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: remora
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
