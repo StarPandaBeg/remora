@@ -1,5 +1,11 @@
-import { drizzle } from 'drizzle-orm/node-postgres'
+import {
+    serializerCompiler,
+    validatorCompiler,
+} from '@fastify/type-provider-zod'
 import type { FastifyPluginAsync } from 'fastify'
+
+import dbPlugin from './plugins/db.ts'
+import registerRoutes from './routes.ts'
 
 export interface AppOptions {
     serviceName?: string
@@ -7,18 +13,13 @@ export interface AppOptions {
 
 export const options: AppOptions = {}
 
-const app: FastifyPluginAsync<AppOptions> = (fastify, options) => {
-    const serviceName = options.serviceName ?? '@remora/core'
+const app: FastifyPluginAsync<AppOptions> = (fastify) => {
+    fastify.setValidatorCompiler(validatorCompiler)
+    fastify.setSerializerCompiler(serializerCompiler)
 
-    // Temporary add db here for schema build compilation
-    // eslint-disable-next-line
-    const db = drizzle(process.env.POSTGRES_URL!)
+    fastify.register(dbPlugin)
 
-    fastify.get('/health', () => ({
-        service: serviceName,
-        status: 'ok',
-    }))
-
+    fastify.register(registerRoutes)
     return Promise.resolve()
 }
 

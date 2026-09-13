@@ -27,9 +27,12 @@
     "author": "StarPanda",
     "license": "MIT",
     "dependencies": {
+        "@fastify/type-provider-zod": "^1.0.0",
         "drizzle-orm": "^1.0.0-rc.4",
         "fastify": "^5.12.3",
-        "pg": "^8.23.0"
+        "fastify-plugin": "^6.0.0",
+        "pg": "^8.23.0",
+        "zod": "^4.6.4"
     },
     "devDependencies": {
         "@types/pg": "^8.23.1",

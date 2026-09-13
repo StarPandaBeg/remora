@@ -8,13 +8,18 @@ const timestamps = {
 }
 export const entryType = t.pgEnum('entryType', ['note'])
 
-export const folders = t.snakeCase.table('folders', {
-    id: t.serial().primaryKey(),
-    parentId: t.integer().references((): t.AnyPgColumn => folders.id),
-    name: t.varchar().notNull(),
-    description: t.text(),
-    ...timestamps,
-})
+export const folders = t.snakeCase.table(
+    'folders',
+    {
+        id: t.serial().primaryKey(),
+        parentId: t.integer().references((): t.AnyPgColumn => folders.id),
+        name: t.varchar().notNull(),
+        description: t.text(),
+        ...timestamps,
+    },
+    (table) => [t.index('folders_parent_id_idx').on(table.parentId)],
+)
+export type Folder = typeof folders.$inferSelect
 
 export const entries = t.snakeCase.table('entries', {
     id: t.serial().primaryKey(),
