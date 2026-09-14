@@ -1,11 +1,20 @@
+import { createHash, timingSafeEqual } from 'node:crypto'
+
 import type { ZodTypeProvider } from '@fastify/type-provider-zod'
-import type { FastifyPluginCallback, FastifyRequest } from 'fastify'
+import type {
+    FastifyPluginCallback,
+    FastifyReply,
+    FastifyRequest,
+} from 'fastify'
 import fastifyPlugin from 'fastify-plugin'
 import { z } from 'zod/v4'
 
 import { processingStatus } from '../../database/schema.ts'
+import type { WorkerEvent } from '../../orchestrator/worker.ts'
+import { HttpError } from '../../util/error.ts'
 import { taskDtoSchema, toTaskDto } from './tasks.dto.ts'
 
+export const workerSecretHeader = 'x-worker-secret'
 const taskIdSchema = z.coerce.number().int().positive()
 const taskStatusSchema = z.enum(processingStatus.enumValues)
 
@@ -19,8 +28,76 @@ export const taskParamsSchema = z.object({
     id: taskIdSchema,
 })
 
+const workerEventDataSchema = z.record(z.string(), z.unknown())
+
+export const workerEventSchema: z.ZodType<WorkerEvent> = z.discriminatedUnion(
+    'type',
+    [
+        z.strictObject({
+            type: z.literal('task.started'),
+            taskId: taskIdSchema,
+        }),
+        z.strictObject({
+            type: z.literal('task.progress'),
+            taskId: taskIdSchema,
+            progress: z.number().finite(),
+        }),
+        z.strictObject({
+            type: z.literal('task.completed'),
+            taskId: taskIdSchema,
+            output: workerEventDataSchema,
+        }),
+        z.strictObject({
+            type: z.literal('task.failed'),
+            taskId: taskIdSchema,
+            error: workerEventDataSchema,
+        }),
+    ],
+)
+
 type TaskParams = z.output<typeof taskParamsSchema>
 type GetTasksQuery = z.output<typeof getTasksQuerySchema>
+
+function secretDigest(secret: string): Buffer {
+    return createHash('sha256').update(secret, 'utf8').digest()
+}
+
+export function isWorkerCallbackAuthorized(
+    providedSecret: string | string[] | undefined,
+    expectedSecret: string | null,
+): boolean {
+    if (typeof providedSecret !== 'string' || expectedSecret === null) {
+        return false
+    }
+
+    return timingSafeEqual(
+        secretDigest(providedSecret),
+        secretDigest(expectedSecret),
+    )
+}
+
+export async function authenticateWorkerCallback(request: FastifyRequest) {
+    if (
+        !isWorkerCallbackAuthorized(
+            request.headers[workerSecretHeader],
+            request.server.config.workerCallbackSecret,
+        )
+    ) {
+        throw new HttpError(
+            'WORKER_CALLBACK_UNAUTHORIZED',
+            'Worker callback secret is missing or invalid',
+            401,
+        )
+    }
+}
+
+export async function workerEventHandler(
+    request: FastifyRequest<{ Body: WorkerEvent }>,
+    reply: FastifyReply,
+) {
+    await request.server.services.tasks.handleWorkerEvent(request.body)
+    return reply.code(204).send()
+}
 
 export async function getTasksHandler(
     request: FastifyRequest<{ Querystring: GetTasksQuery }>,
@@ -69,6 +146,20 @@ const tasksApi: FastifyPluginCallback = (fastify, _options, done) => {
             },
         },
         getTasksHandler,
+    )
+
+    api.post(
+        '/tasks/events',
+        {
+            onRequest: authenticateWorkerCallback,
+            schema: {
+                body: workerEventSchema,
+                security: [{ workerCallbackSecret: [] }],
+                summary: 'Receive an event from a worker',
+                tags: ['tasks'],
+            },
+        },
+        workerEventHandler,
     )
 
     api.get(

@@ -16,6 +16,15 @@ export default fastifyPlugin(
                         'API for folders, entries and Remora services.',
                     version: '1.0.0',
                 },
+                components: {
+                    securitySchemes: {
+                        workerCallbackSecret: {
+                            type: 'apiKey',
+                            in: 'header',
+                            name: 'x-worker-secret',
+                        },
+                    },
+                },
                 tags: [
                     {
                         name: 'entries',
@@ -24,6 +33,10 @@ export default fastifyPlugin(
                     {
                         name: 'folders',
                         description: 'Folder tree management',
+                    },
+                    {
+                        name: 'tasks',
+                        description: 'Task management and worker callbacks',
                     },
                     {
                         name: 'system',

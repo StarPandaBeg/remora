@@ -1,5 +1,6 @@
 import type { ProcessingStatus } from '../../database/schema.ts'
 import type { Orchestrator } from '../../orchestrator/orchestrator.ts'
+import type { WorkerEvent } from '../../orchestrator/worker.ts'
 import type { RepositoryRegistry } from '../../repositories.ts'
 import { HttpError } from '../../util/error.ts'
 
@@ -7,7 +8,7 @@ export interface TaskServiceDependencies {
     repositories: {
         tasks: Pick<RepositoryRegistry['tasks'], 'findTask' | 'findTasks'>
     }
-    orchestrator: Pick<Orchestrator, 'runTask'>
+    orchestrator: Pick<Orchestrator, 'handleWorkerEvent' | 'runTask'>
 }
 
 export function createTaskService(dependencies: TaskServiceDependencies) {
@@ -32,9 +33,14 @@ export function createTaskService(dependencies: TaskServiceDependencies) {
         return await getById(id)
     }
 
+    const handleWorkerEvent = async (event: WorkerEvent) => {
+        await dependencies.orchestrator.handleWorkerEvent(event)
+    }
+
     return {
         getAll,
         getById,
+        handleWorkerEvent,
         start,
     }
 }

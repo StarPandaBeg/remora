@@ -2,8 +2,10 @@ import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
 import type { TaskRun, TaskStep } from '../../database/schema.ts'
+import type { WorkerEvent } from '../../orchestrator/worker.ts'
 import { HttpError } from '../../util/error.ts'
 import { toTaskDto } from './tasks.dto.ts'
+import { isWorkerCallbackAuthorized, workerEventSchema } from './tasks.route.ts'
 import { createTaskService } from './tasks.service.ts'
 
 const now = new Date('2026-09-14T10:00:00.000Z')
@@ -53,7 +55,10 @@ void describe('task service', () => {
                     findTasks: async () => [],
                 },
             },
-            orchestrator: { runTask: async () => undefined },
+            orchestrator: {
+                handleWorkerEvent: async () => undefined,
+                runTask: async () => undefined,
+            },
         })
 
         await assert.rejects(service.getById(404), (error: unknown) => {
@@ -81,6 +86,7 @@ void describe('task service', () => {
                 },
             },
             orchestrator: {
+                handleWorkerEvent: async () => undefined,
                 runTask: async (task) => {
                     startedTask = task
                 },
@@ -107,13 +113,42 @@ void describe('task service', () => {
                     },
                 },
             },
-            orchestrator: { runTask: async () => undefined },
+            orchestrator: {
+                handleWorkerEvent: async () => undefined,
+                runTask: async () => undefined,
+            },
         })
 
         const result = await service.getAll(['pending', 'failed'])
 
         assert.deepEqual(receivedStatuses, ['pending', 'failed'])
         assert.equal(result, tasks)
+    })
+
+    void it('forwards worker events to the orchestrator', async () => {
+        const event = {
+            type: 'task.started',
+            taskId: 42,
+        } as const
+        let receivedEvent: WorkerEvent | undefined
+        const service = createTaskService({
+            repositories: {
+                tasks: {
+                    findTask: async () => undefined,
+                    findTasks: async () => [],
+                },
+            },
+            orchestrator: {
+                handleWorkerEvent: async (workerEvent) => {
+                    receivedEvent = workerEvent
+                },
+                runTask: async () => undefined,
+            },
+        })
+
+        await service.handleWorkerEvent(event)
+
+        assert.equal(receivedEvent, event)
     })
 })
 
@@ -127,5 +162,29 @@ void describe('task DTO', () => {
         )
         assert.equal(dto.createdAt, now.toISOString())
         assert.equal(dto.startedAt, null)
+    })
+})
+
+void describe('worker callback', () => {
+    void it('requires the configured worker secret', () => {
+        const secret = 'a-secure-worker-secret-with-32-characters'
+
+        assert.equal(isWorkerCallbackAuthorized(undefined, secret), false)
+        assert.equal(isWorkerCallbackAuthorized('wrong-secret', secret), false)
+        assert.equal(isWorkerCallbackAuthorized(secret, null), false)
+        assert.equal(isWorkerCallbackAuthorized(secret, secret), true)
+    })
+
+    void it('validates every worker event variant', () => {
+        const events: WorkerEvent[] = [
+            { type: 'task.started', taskId: 1 },
+            { type: 'task.progress', taskId: 1, progress: 50 },
+            { type: 'task.completed', taskId: 1, output: { text: 'done' } },
+            { type: 'task.failed', taskId: 1, error: { message: 'failed' } },
+        ]
+
+        for (const event of events) {
+            assert.deepEqual(workerEventSchema.parse(event), event)
+        }
     })
 })
