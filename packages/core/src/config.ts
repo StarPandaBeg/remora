@@ -22,7 +22,7 @@ const environmentSchema = z.object({
         .regex(/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/)
         .default('remora'),
     MINIO_REGION: z.string().min(1).default('us-east-1'),
-    WORKER_CALLBACK_SECRET: z.string().min(32).optional(),
+    WORKER_SECRET: z.string().min(32).optional(),
     MAX_FILE_SIZE_BYTES: z.coerce
         .number()
         .int()
@@ -69,7 +69,7 @@ export function loadConfig(
             bucket: parsed.MINIO_BUCKET,
             region: parsed.MINIO_REGION,
         },
-        workerCallbackSecret: parsed.WORKER_CALLBACK_SECRET ?? null,
+        workerCallbackSecret: parsed.WORKER_SECRET ?? null,
         maxFileSizeBytes: parsed.MAX_FILE_SIZE_BYTES,
     }
 }

@@ -20,8 +20,8 @@ services:
         image: firstfinger/minio:latest
         container_name: remora-minio
         environment:
-            MINIO_ROOT_USER: admin
-            MINIO_ROOT_PASSWORD: admin123123
+            MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-admin}
+            MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-admin123123}
         ports:
             - '9000:9000'
             - '9001:9002'
@@ -33,6 +33,40 @@ services:
             interval: 5s
             timeout: 5s
             retries: 10
+
+    remora-worker:
+        build:
+            context: ./packages/worker
+        container_name: remora-worker
+        environment:
+            WORKER_SECRET: ${WORKER_SECRET}
+            MINIO_ENDPOINT: remora-minio
+            MINIO_PORT: ${MINIO_PORT:-9000}
+            MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+            MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-admin}
+            MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-admin123123}
+            MINIO_BUCKET: ${MINIO_BUCKET:-remora}
+            MINIO_REGION: ${MINIO_REGION:-us-east-1}
+            MAX_CONCURRENT_TASKS: ${MAX_CONCURRENT_TASKS:-2}
+            HTTP_TIMEOUT: ${HTTP_TIMEOUT:-10}
+            FINAL_EVENT_RETRY_COUNT: ${FINAL_EVENT_RETRY_COUNT:-3}
+            FINAL_EVENT_RETRY_BASE_DELAY: ${FINAL_EVENT_RETRY_BASE_DELAY:-0.25}
+        ports:
+            - '8000:8000'
+        depends_on:
+            remora-minio:
+                condition: service_healthy
+        healthcheck:
+            test:
+                [
+                    'CMD',
+                    'python',
+                    '-c',
+                    "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
 
 volumes:
     pgdata:

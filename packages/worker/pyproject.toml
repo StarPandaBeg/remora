@@ -1,0 +1,30 @@
+[project]
+name = "remora-worker"
+version = "0.1.0"
+description = "Stateless task worker for Remora"
+authors = [
+    { name = "StarPanda" },
+]
+requires-python = ">=3.12,<4.0"
+dependencies = [
+    "fastapi>=0.115,<1.0",
+    "httpx>=0.27,<1.0",
+    "minio>=7.2,<8.0",
+    "pydantic>=2.10,<3.0",
+    "pydantic-settings>=2.7,<3.0",
+    "uvicorn[standard]>=0.34,<1.0",
+]
+
+[tool.poetry]
+packages = [{ include = "worker", from = "src" }]
+
+[tool.poetry.group.dev.dependencies]
+pytest = ">=8.3,<10.0"
+
+[build-system]
+requires = ["poetry-core>=2.0,<3.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]

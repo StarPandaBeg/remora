@@ -7,8 +7,9 @@ data/
 
 # Python
 .venv/
-python/**/__pycache__/
-python/**/*.py[cod]
+**/__pycache__/
+**/*.py[cod]
+.pytest_cache/
 
 .env*
 !.env.example

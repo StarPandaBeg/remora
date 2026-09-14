@@ -11,7 +11,7 @@ declare namespace NodeJS {
         MINIO_SECRET_KEY?: string
         MINIO_BUCKET?: string
         MINIO_REGION?: string
-        WORKER_CALLBACK_SECRET?: string
+        WORKER_SECRET?: string
         MAX_FILE_SIZE_BYTES?: `${number}`
     }
 }
