@@ -105,19 +105,48 @@ export function createEntryService({
 
             const o = orchestrator.withRepositories(transactionRepositories)
             const tasks = o.applicableTaskTypes(entry)
+            const createdTasks = []
             for (const t of tasks) {
-                await o.createTaskForEntry(entry, t, false)
+                createdTasks.push(await o.createTaskForEntry(entry, t, false))
             }
-            return entry
+
+            const entryWithTasks =
+                await transactionRepositories.entries.updateMetadata(entry.id, {
+                    ...entry.metadata,
+                    relatedTasks: createdTasks.map((task) => task.id),
+                })
+            if (entryWithTasks === undefined) {
+                throw new HttpError(
+                    'ENTRY_METADATA_UPDATE_FAILED',
+                    `Entry ${entry.id} metadata could not be updated`,
+                    500,
+                )
+            }
+
+            return { entry: entryWithTasks, tasks: createdTasks }
         })
+    }
+
+    const startTasks = async (
+        persisted: Awaited<ReturnType<typeof persistEntry>>,
+    ) => {
+        await Promise.all(
+            persisted.tasks.map(async (task) => {
+                await orchestrator.runTask(task)
+            }),
+        )
+
+        return persisted.entry
     }
 
     const create = async (input: CreateEntryInput) => {
         await ensureFolderExists(input.folderId)
 
-        if (!isFileEntryInput(input)) return await persistEntry(input)
+        if (!isFileEntryInput(input)) {
+            return await startTasks(await persistEntry(input))
+        }
 
-        return await files.uploadAndPersist(
+        const persisted = await files.uploadAndPersist(
             input.file,
             async (uploadedFile) =>
                 await persistEntry(
@@ -130,6 +159,8 @@ export function createEntryService({
                     uploadedFile,
                 ),
         )
+
+        return await startTasks(persisted)
     }
 
     const getFile = async (id: number) => {

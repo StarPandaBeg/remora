@@ -43,6 +43,13 @@ export function createTaskRepository(db: DbExecutor) {
         })
     }
 
+    const findTasks = async (statuses?: ProcessingStatus[]) => {
+        return await db.query.taskRuns.findMany({
+            where: statuses ? { status: { in: statuses } } : undefined,
+            with: { steps: true },
+        })
+    }
+
     const findStep = async (id: number) => {
         return await db.query.taskSteps.findFirst({
             where: { id },
@@ -145,6 +152,7 @@ export function createTaskRepository(db: DbExecutor) {
         createTask,
         createStep,
         findTask,
+        findTasks,
         findStep,
         updateTaskStatus,
         updateStepStatus,

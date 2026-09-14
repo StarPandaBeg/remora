@@ -79,6 +79,7 @@ export const createOrchestrator = (
             throw new HttpError(
                 'TASK_CANNOT_BE_RUNNED',
                 'You can run only pending tasks',
+                409,
             )
         }
 

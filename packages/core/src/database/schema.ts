@@ -1,5 +1,6 @@
 import { defineRelations } from 'drizzle-orm'
 import * as t from 'drizzle-orm/pg-core'
+import type { TaskType } from '../orchestrator/tasks.ts'
 
 /** Mixin for `created_at` and `updated_at` columns */
 const timestamps = {
@@ -37,6 +38,7 @@ export interface StoredFileMetadata {
 }
 
 export type EntryMetadata = Record<string, unknown> & {
+    relatedTasks: number[]
     file?: StoredFileMetadata
 }
 
@@ -68,7 +70,11 @@ export const entries = t.snakeCase.table(
         name: t.varchar().notNull(),
         type: entryType().notNull(),
         content: t.text(),
-        metadata: t.jsonb().$type<EntryMetadata>().notNull().default({}),
+        metadata: t
+            .jsonb()
+            .$type<EntryMetadata>()
+            .notNull()
+            .default({ relatedTasks: [] }),
         ...timestamps,
     },
     (table) => [t.index('entries_folder_id_idx').on(table.folderId)],
@@ -86,13 +92,13 @@ export const taskRuns = t.snakeCase.table('task_runs', {
         }),
     status: processingStatus().notNull().default('pending'),
     config: t.jsonb().default({}),
-    type: t.varchar().notNull(),
+    type: t.varchar().notNull().$type<TaskType>(),
     pipelineVersion: t.integer().notNull().default(1),
     ...timestamps,
     startedAt: t.timestamp(),
     finishedAt: t.timestamp(),
 })
-export type TaskRun = typeof taskRuns.$inferSelect
+export type TaskRun = typeof taskRuns.$inferSelect & { steps?: TaskStep[] }
 export type TaskRunCreate = typeof taskRuns.$inferInsert
 
 export const taskSteps = t.snakeCase.table('task_steps', {
@@ -114,7 +120,7 @@ export const taskSteps = t.snakeCase.table('task_steps', {
     startedAt: t.timestamp(),
     finishedAt: t.timestamp(),
 })
-export type TaskStep = typeof taskSteps.$inferSelect
+export type TaskStep = typeof taskSteps.$inferSelect & { task?: TaskRun }
 export type TaskStepCreate = typeof taskSteps.$inferInsert
 
 export const relations = defineRelations(

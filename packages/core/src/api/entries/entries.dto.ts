@@ -33,13 +33,31 @@ export type EntryTreeDto =
           depth: number
       }
 
+const storedFileMetadataSchema = z.object({
+    bucket: z.string(),
+    objectKey: z.string(),
+    mimeType: z.string(),
+    originalName: z.string(),
+    size: z.number().int().nonnegative(),
+    recordId: z.string(),
+    url: z.url(),
+    disposition: z.enum(['inline', 'attachment']),
+})
+
+export const entryMetadataSchema: z.ZodType<EntryMetadata> = z
+    .object({
+        relatedTasks: z.array(z.number().int().positive()),
+        file: storedFileMetadataSchema.optional(),
+    })
+    .catchall(z.unknown())
+
 export const entryDtoSchema: z.ZodType<EntryDto> = z.object({
     id: z.number().int().positive(),
     folderId: z.number().int().positive(),
     name: z.string(),
     type: z.enum(['note', 'video_record', 'file']),
     content: z.string().nullable(),
-    metadata: z.record(z.string(), z.unknown()),
+    metadata: entryMetadataSchema,
 })
 
 export const entryTreeDtoSchema: z.ZodType<EntryTreeDto> = z.lazy(() =>
@@ -60,7 +78,7 @@ export const entryTreeDtoSchema: z.ZodType<EntryTreeDto> = z.lazy(() =>
             name: z.string(),
             type: z.enum(['note', 'video_record', 'file']),
             content: z.string().nullable(),
-            metadata: z.record(z.string(), z.unknown()),
+            metadata: entryMetadataSchema,
             depth: z.number().int().min(0),
         }),
     ]),

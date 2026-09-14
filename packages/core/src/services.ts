@@ -29,10 +29,10 @@ export function createServices(dependencies: ServiceDependencies) {
         }),
         files,
         folders: createFolderService(dependencies.repositories.folders),
-        tasks: createTaskService(
-            dependencies.repositories,
-            dependencies.transaction,
-        ),
+        tasks: createTaskService({
+            repositories: dependencies.repositories,
+            orchestrator: dependencies.orchestrator,
+        }),
     }
 }
 

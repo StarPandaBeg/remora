@@ -88,6 +88,7 @@ export function createEntryFileService({
         file: UploadedEntryFile,
         entryId: number,
     ): EntryMetadata => ({
+        relatedTasks: [],
         file: {
             ...file,
             url: `${publicBaseUrl}/v1/entries/${entryId}/file`,
