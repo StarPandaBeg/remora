@@ -56,13 +56,13 @@ void describe('runtime config API', () => {
             const response = await server.inject({
                 method: 'PATCH',
                 url: '/config',
-                payload: { 'video.frameInterval': 20 },
+                payload: { 'video_record.prefer_source': true },
             })
 
             assert.equal(response.statusCode, 200)
             assert.deepEqual(response.json(), {
                 ...getDefaultRuntimeConfig(),
-                'video.frameInterval': 20,
+                'video_record.prefer_source': true,
             })
         } finally {
             await server.close()
@@ -75,11 +75,11 @@ void describe('runtime config API', () => {
             await server.inject({
                 method: 'PATCH',
                 url: '/config',
-                payload: { 'video.frameInterval': 20 },
+                payload: { 'video_record.prefer_source': true },
             })
             const reset = await server.inject({
                 method: 'DELETE',
-                url: '/config/video.frameInterval',
+                url: '/config/video_record.prefer_source',
             })
             const effective = await server.inject({
                 method: 'GET',

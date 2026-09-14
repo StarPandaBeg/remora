@@ -7,16 +7,22 @@ import type {
 
 export interface TaskContext extends PipelineContext {
     entry: Entry
+    mediaPrepare?: {
+        videoObjectKey: string
+    }
 }
 
 interface MediaPrepareStepInput {
-    bucket: string
-    objectKey: string
+    source: {
+        bucket: string
+        objectKey: string
+    }
+    mimetype: string
     recordId: string
 }
 interface MediaPrepareStepOutput {
     bucket: string
-    objectKey: string
+    videoObjectKey: string
 }
 
 /** Кодирование исходного видео */
@@ -32,24 +38,24 @@ const MediaPrepareStep: StepDefinition<
             throw new Error('ENTRY_NOT_SUPPORTED')
         }
         return {
-            bucket: ctx.entry.metadata.file.bucket,
-            objectKey: ctx.entry.metadata.file.objectKey,
+            source: {
+                bucket: ctx.entry.metadata.file.bucket,
+                objectKey: ctx.entry.metadata.file.objectKey,
+            },
+            mimetype: ctx.entry.metadata.file.mimeType,
             recordId: ctx.entry.metadata.file.recordId,
         }
     },
 
     validateOutput: async (output) => {
-        void output
-        // unknown for now
-        return {
-            bucket: 'remora',
-            objectKey: '-',
-        }
+        return output as MediaPrepareStepOutput
     },
 
     updateContext: async (ctx, output) => {
-        void output
-        return { ...ctx }
+        return {
+            ...ctx,
+            mediaPrepare: { videoObjectKey: output.videoObjectKey },
+        }
     },
 }
 
@@ -59,8 +65,7 @@ export const VideoRecordSummaryTask: TaskDefinition = {
 
     canUseEntry: (entry) => entry.type === 'video_record',
     selectConfig: (config) => ({
-        // 'video.frameInterval': config['video.frameInterval'],
-        // 'video.frames.enabled': config['video.frames.enabled'],
+        'video_record.prefer_source': config['video_record.prefer_source'],
     }),
     buildContext: async (entry) => {
         return { entry }

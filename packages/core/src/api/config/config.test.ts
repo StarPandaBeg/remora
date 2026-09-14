@@ -92,37 +92,37 @@ void describe('runtime config service', () => {
     })
 
     void it('applies database overrides over defaults', async () => {
-        const { service } = createHarness({ 'video.frameInterval': 24 })
+        const { service } = createHarness({
+            'video_record.prefer_source': true,
+        })
 
         assert.deepEqual(await service.getEffective(), {
-            'video.frameInterval': 24,
-            'video.frames.enabled': true,
+            'video_record.prefer_source': true,
         })
     })
 
     void it('updates one key without changing other effective values', async () => {
         const { service } = createHarness()
 
-        const effective = await service.update({ 'video.frameInterval': 15 })
+        const effective = await service.update({
+            'video_record.prefer_source': true,
+        })
 
         assert.deepEqual(effective, {
-            'video.frameInterval': 15,
-            'video.frames.enabled': true,
+            'video_record.prefer_source': true,
         })
     })
 
-    void it('updates multiple keys atomically through a transaction', async () => {
+    void it('updates values atomically through a transaction', async () => {
         const harness = createHarness()
 
         const effective = await harness.service.update({
-            'video.frameInterval': 30,
-            'video.frames.enabled': false,
+            'video_record.prefer_source': true,
         })
 
         assert.equal(harness.transactionCount(), 1)
         assert.deepEqual(effective, {
-            'video.frameInterval': 30,
-            'video.frames.enabled': false,
+            'video_record.prefer_source': true,
         })
     })
 
@@ -131,8 +131,8 @@ void describe('runtime config service', () => {
 
         await assert.rejects(
             harness.service.update({
-                'video.frameInterval': 20,
-                'video.frameInterva1': 30,
+                'video_record.prefer_source': true,
+                'video_record.prefer_souce': false,
             }),
             (error: unknown) => {
                 assert.ok(error instanceof HttpError)
@@ -149,7 +149,7 @@ void describe('runtime config service', () => {
         const { service } = createHarness()
 
         await assert.rejects(
-            service.update({ 'video.frameInterval': 'fast' }),
+            service.update({ 'video_record.prefer_source': 'yes' }),
             (error: unknown) => {
                 assert.ok(error instanceof HttpError)
                 assert.equal(error.code, 'CONFIG_VALUE_INVALID')
@@ -160,29 +160,37 @@ void describe('runtime config service', () => {
     })
 
     void it('deletes an override and falls back to the default', async () => {
-        const harness = createHarness({ 'video.frameInterval': 25 })
+        const harness = createHarness({
+            'video_record.prefer_source': true,
+        })
 
-        await harness.service.reset('video.frameInterval')
+        await harness.service.reset('video_record.prefer_source')
 
-        assert.equal(harness.overrides.has('video.frameInterval'), false)
+        assert.equal(harness.overrides.has('video_record.prefer_source'), false)
         assert.equal(
-            (await harness.service.getEffective())['video.frameInterval'],
-            10,
+            (await harness.service.getEffective())[
+                'video_record.prefer_source'
+            ],
+            false,
         )
     })
 
     void it('observes changes on every read without a restart', async () => {
         const harness = createHarness()
         assert.equal(
-            (await harness.service.getEffective())['video.frameInterval'],
-            10,
+            (await harness.service.getEffective())[
+                'video_record.prefer_source'
+            ],
+            false,
         )
 
-        harness.overrides.set('video.frameInterval', 60)
+        harness.overrides.set('video_record.prefer_source', true)
 
         assert.equal(
-            (await harness.service.getEffective())['video.frameInterval'],
-            60,
+            (await harness.service.getEffective())[
+                'video_record.prefer_source'
+            ],
+            true,
         )
     })
 })

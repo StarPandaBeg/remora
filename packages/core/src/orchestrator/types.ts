@@ -11,6 +11,8 @@ export interface TaskDefinition {
     canUseEntry: (entry: Entry) => boolean
     buildContext: (entry: Entry) => Promise<PipelineContext>
     selectConfig: (config: RuntimeConfig) => JsonObject
+
+    onCompleted?(ctx: PipelineContext): Promise<void>
 }
 
 export interface StepDefinition<C extends PipelineContext, I, O> {
@@ -19,6 +21,8 @@ export interface StepDefinition<C extends PipelineContext, I, O> {
     buildInput(ctx: C): Promise<I>
     validateOutput(output: unknown): Promise<O>
     updateContext(ctx: C, output: O): Promise<C>
+
+    onCompleted?(ctx: C): Promise<void>
 }
 
 export type { Worker, WorkerTaskCommand } from './worker.ts'

@@ -277,12 +277,14 @@ export const createOrchestrator = (
             .toSorted((a, b) => a.position - b.position)
             .find((s) => s.position === step.position + 1)
         await transaction(async (repositories) => {
+            await stepDef.onCompleted?.(ctx)
             await repositories.tasks.finishStep(step.id, output as object)
 
             if (nextStep) {
                 await repositories.tasks.setStepContext(nextStep.id, ctx)
             } else {
                 await repositories.tasks.finishTask(task.id)
+                await taskDef.onCompleted?.(ctx)
             }
         })
 

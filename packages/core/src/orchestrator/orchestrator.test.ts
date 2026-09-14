@@ -255,21 +255,18 @@ void describe('orchestrator worker dispatch', () => {
 void describe('task configuration snapshot', () => {
     void it('lets the task definition select only its pipeline settings', () => {
         const globalConfig: RuntimeConfig & { 'unrelated.setting': boolean } = {
-            'video.frameInterval': 15,
-            'video.frames.enabled': false,
+            'video_record.prefer_source': true,
             'unrelated.setting': true,
         }
 
         assert.deepEqual(VideoRecordSummaryTask.selectConfig(globalConfig), {
-            'video.frameInterval': 15,
-            'video.frames.enabled': false,
+            'video_record.prefer_source': true,
         })
     })
 
     void it('stores one snapshot per task and preserves existing snapshots', async () => {
         let effective: RuntimeConfig = {
-            'video.frameInterval': 10,
-            'video.frames.enabled': true,
+            'video_record.prefer_source': false,
         }
         const created: TaskRunCreate[] = []
         const repositories = {
@@ -310,8 +307,7 @@ void describe('task configuration snapshot', () => {
         )
 
         effective = {
-            'video.frameInterval': 45,
-            'video.frames.enabled': false,
+            'video_record.prefer_source': true,
         }
         const second = await orchestrator.createTaskForEntry(
             createEntry(),
@@ -319,12 +315,10 @@ void describe('task configuration snapshot', () => {
         )
 
         assert.deepEqual(first.config, {
-            'video.frameInterval': 10,
-            'video.frames.enabled': true,
+            'video_record.prefer_source': false,
         })
         assert.deepEqual(second.config, {
-            'video.frameInterval': 45,
-            'video.frames.enabled': false,
+            'video_record.prefer_source': true,
         })
         assert.deepEqual(first.config, created[0]?.config)
     })

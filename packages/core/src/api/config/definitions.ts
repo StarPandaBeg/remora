@@ -1,10 +1,10 @@
+import * as z from 'zod'
+
+import type { ConfigDefinition } from './types.ts'
+
 export const configDefinitions = {
-    // 'video.frameInterval': {
-    //     default: 10,
-    //     schema: z.number().int().min(1).max(3_600),
-    // },
-    // 'video.frames.enabled': {
-    //     default: true,
-    //     schema: z.boolean(),
-    // },
-}
+    'video_record.prefer_source': {
+        default: false,
+        schema: z.boolean(),
+    },
+} satisfies Record<string, ConfigDefinition>
