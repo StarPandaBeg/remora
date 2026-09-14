@@ -32,6 +32,7 @@ const environmentSchema = z.object({
         .default(10_737_418_240),
 })
 
+/** Startup and infrastructure settings. Runtime/user settings live in PostgreSQL. */
 export interface AppConfig {
     host: string
     port: number

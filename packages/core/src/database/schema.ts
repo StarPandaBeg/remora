@@ -1,6 +1,7 @@
 import { defineRelations } from 'drizzle-orm'
 import * as t from 'drizzle-orm/pg-core'
 import type { TaskType } from '../orchestrator/tasks.ts'
+import type { JsonObject, JsonValue } from '../types/json.ts'
 
 /** Mixin for `created_at` and `updated_at` columns */
 const timestamps = {
@@ -82,6 +83,13 @@ export const entries = t.snakeCase.table(
 export type Entry = typeof entries.$inferSelect
 export type EntryCreate = typeof entries.$inferInsert
 
+export const configEntries = t.snakeCase.table('config', {
+    key: t.varchar().primaryKey(),
+    value: t.jsonb().$type<JsonValue>().notNull(),
+    ...timestamps,
+})
+export type ConfigEntry = typeof configEntries.$inferSelect
+
 export const taskRuns = t.snakeCase.table('task_runs', {
     id: t.serial().primaryKey(),
     entryId: t
@@ -91,7 +99,7 @@ export const taskRuns = t.snakeCase.table('task_runs', {
             onDelete: 'cascade',
         }),
     status: processingStatus().notNull().default('pending'),
-    config: t.jsonb().default({}),
+    config: t.jsonb().$type<JsonObject>().default({}),
     type: t.varchar().notNull().$type<TaskType>(),
     pipelineVersion: t.integer().notNull().default(1),
     ...timestamps,
@@ -124,7 +132,7 @@ export type TaskStep = typeof taskSteps.$inferSelect & { task?: TaskRun }
 export type TaskStepCreate = typeof taskSteps.$inferInsert
 
 export const relations = defineRelations(
-    { folders, entries, taskRuns, taskSteps },
+    { folders, entries, configEntries, taskRuns, taskSteps },
     (r) => ({
         folders: {
             parent: r.one.folders({

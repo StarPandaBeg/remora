@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify'
 import fastifyPlugin from 'fastify-plugin'
 
+import { createRuntimeConfigService } from '../api/config/config.ts'
 import type { AppConfig } from '../config.ts'
 import { createDatabase, type AppDatabase } from '../database/index.ts'
 import { createOrchestrator } from '../orchestrator/orchestrator.ts'
@@ -28,18 +29,25 @@ const dependenciesPlugin: FastifyPluginAsync<DependencyOptions> = async (
 
     const repositories = createRepositories(db)
     const transaction = createTransactionRunner(db, repositories)
+    const runtimeConfig = createRuntimeConfigService(repositories, transaction)
     const worker = createWorker({
         publicBaseUrl: options.config.publicBaseUrl,
         workerUrl: options.config.workerUrl,
         requestTimeoutMs: options.config.workerRequestTimeoutMs,
     })
-    const orchestrator = createOrchestrator(repositories, transaction, worker)
+    const orchestrator = createOrchestrator(
+        repositories,
+        transaction,
+        worker,
+        runtimeConfig,
+    )
     const services = createServices({
         publicBaseUrl: options.config.publicBaseUrl,
         repositories,
         storage,
         transaction,
         orchestrator,
+        runtimeConfig,
     })
 
     fastify.decorate('config', options.config)

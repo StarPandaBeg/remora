@@ -1,9 +1,20 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 
-import type { Entry, TaskRun, TaskStep } from '../database/schema.ts'
+import { getDefaultRuntimeConfig } from '../api/config/config.ts'
+import type { RuntimeConfig } from '../api/config/types.ts'
+import type {
+    Entry,
+    TaskRun,
+    TaskRunCreate,
+    TaskStep,
+} from '../database/schema.ts'
 import type { RepositoryRegistry, TransactionRunner } from '../repositories.ts'
-import { createOrchestrator } from './orchestrator.ts'
+import {
+    createOrchestrator,
+    type RuntimeConfigProvider,
+} from './orchestrator.ts'
+import { VideoRecordSummaryTask } from './tasks/video-summary.task.ts'
 import type { WorkerTaskCommand } from './worker.ts'
 
 const now = new Date('2026-09-14T10:00:00.000Z')
@@ -71,6 +82,14 @@ interface HarnessOptions {
     haltTask?: () => Promise<void>
 }
 
+function createRuntimeConfigStub() {
+    const service = {
+        getEffective: async () => getDefaultRuntimeConfig(),
+        withRepositories: () => service,
+    }
+    return service
+}
+
 function createHarness(options: HarnessOptions) {
     const task = createRunningTask()
     const calls: string[] = []
@@ -97,12 +116,17 @@ function createHarness(options: HarnessOptions) {
     } as unknown as RepositoryRegistry
     const transaction: TransactionRunner = async (work) =>
         await work(repositories)
-    const orchestrator = createOrchestrator(repositories, transaction, {
-        execute: async (command) => {
-            calls.push('execute')
-            await options.execute(command)
+    const orchestrator = createOrchestrator(
+        repositories,
+        transaction,
+        {
+            execute: async (command) => {
+                calls.push('execute')
+                await options.execute(command)
+            },
         },
-    })
+        createRuntimeConfigStub(),
+    )
 
     return {
         calls,
@@ -140,11 +164,16 @@ void describe('orchestrator worker dispatch', () => {
                 transactionActive = false
             }
         }
-        const orchestrator = createOrchestrator(repositories, transaction, {
-            execute: async () => {
-                executeCalledInTransaction = transactionActive
+        const orchestrator = createOrchestrator(
+            repositories,
+            transaction,
+            {
+                execute: async () => {
+                    executeCalledInTransaction = transactionActive
+                },
             },
-        })
+            createRuntimeConfigStub(),
+        )
 
         await orchestrator.runTask(pendingTask)
 
@@ -220,5 +249,83 @@ void describe('orchestrator worker dispatch', () => {
             },
         )
         assert.ok(harness.calls.includes('haltStep'))
+    })
+})
+
+void describe('task configuration snapshot', () => {
+    void it('lets the task definition select only its pipeline settings', () => {
+        const globalConfig: RuntimeConfig & { 'unrelated.setting': boolean } = {
+            'video.frameInterval': 15,
+            'video.frames.enabled': false,
+            'unrelated.setting': true,
+        }
+
+        assert.deepEqual(VideoRecordSummaryTask.selectConfig(globalConfig), {
+            'video.frameInterval': 15,
+            'video.frames.enabled': false,
+        })
+    })
+
+    void it('stores one snapshot per task and preserves existing snapshots', async () => {
+        let effective: RuntimeConfig = {
+            'video.frameInterval': 10,
+            'video.frames.enabled': true,
+        }
+        const created: TaskRunCreate[] = []
+        const repositories = {
+            tasks: {
+                createTask: async (data: TaskRunCreate) => {
+                    created.push(data)
+                    return {
+                        id: created.length,
+                        ...data,
+                        config: data.config ?? {},
+                        status: data.status ?? 'pending',
+                        pipelineVersion: data.pipelineVersion ?? 1,
+                        createdAt: now,
+                        updatedAt: now,
+                        startedAt: null,
+                        finishedAt: null,
+                    } as TaskRun
+                },
+                createStep: async () => undefined,
+            },
+        } as unknown as RepositoryRegistry
+        const transaction: TransactionRunner = async (work) =>
+            await work(repositories)
+        const runtimeConfig: RuntimeConfigProvider = {
+            getEffective: async () => ({ ...effective }),
+            withRepositories: () => runtimeConfig,
+        }
+        const orchestrator = createOrchestrator(
+            repositories,
+            transaction,
+            { execute: async () => undefined },
+            runtimeConfig,
+        )
+
+        const first = await orchestrator.createTaskForEntry(
+            createEntry(),
+            'video_summary',
+        )
+
+        effective = {
+            'video.frameInterval': 45,
+            'video.frames.enabled': false,
+        }
+        const second = await orchestrator.createTaskForEntry(
+            createEntry(),
+            'video_summary',
+        )
+
+        assert.deepEqual(first.config, {
+            'video.frameInterval': 10,
+            'video.frames.enabled': true,
+        })
+        assert.deepEqual(second.config, {
+            'video.frameInterval': 45,
+            'video.frames.enabled': false,
+        })
+        assert.deepEqual(first.config, created[0]?.config)
     })
 })

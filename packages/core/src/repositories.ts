@@ -1,9 +1,11 @@
+import { createRuntimeConfigRepository } from './api/config/config.model.ts'
 import { createEntryRepository } from './api/entries/entries.model.ts'
 import { createFolderRepository } from './api/folders/folders.model.ts'
 import { createTaskRepository } from './api/tasks/tasks.model.ts'
 import type { AppDatabase, DbExecutor } from './database/index.ts'
 
 export interface RepositoryRegistry {
+    config: ReturnType<typeof createRuntimeConfigRepository>
     entries: ReturnType<typeof createEntryRepository>
     folders: ReturnType<typeof createFolderRepository>
     tasks: ReturnType<typeof createTaskRepository>
@@ -12,6 +14,7 @@ export interface RepositoryRegistry {
 
 export function createRepositories(db: DbExecutor): RepositoryRegistry {
     return {
+        config: createRuntimeConfigRepository(db),
         entries: createEntryRepository(db),
         folders: createFolderRepository(db),
         tasks: createTaskRepository(db),

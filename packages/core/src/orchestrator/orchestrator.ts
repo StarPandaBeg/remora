@@ -1,3 +1,4 @@
+import type { RuntimeConfig } from '../api/config/types.ts'
 import type {
     Entry,
     TaskRun,
@@ -7,12 +8,22 @@ import type {
 import type { RepositoryRegistry, TransactionRunner } from '../repositories.ts'
 import { HttpError } from '../util/error.ts'
 import { taskRegistry, type TaskType } from './tasks.ts'
+import type { PipelineContext } from './types.ts'
 import type { Worker, WorkerEvent } from './worker.ts'
+
+export interface RuntimeConfigProvider {
+    getEffective: () => Promise<RuntimeConfig>
+    withRepositories: (
+        repositories: RepositoryRegistry,
+        transaction?: TransactionRunner,
+    ) => RuntimeConfigProvider
+}
 
 export const createOrchestrator = (
     repositories: RepositoryRegistry,
     transaction: TransactionRunner,
     worker: Pick<Worker, 'execute'>,
+    runtimeConfig: RuntimeConfigProvider,
 ) => {
     const dummyTransaction = (
         f: (r: RepositoryRegistry) => Promise<void>,
@@ -44,17 +55,21 @@ export const createOrchestrator = (
     ) => {
         validateApplicableTaskType(entry, taskType)
         const taskDef = taskRegistry[taskType]
-        const taskData: TaskRunCreate = {
-            type: taskType,
-            entryId: entry.id,
-            status: 'pending',
-            pipelineVersion: 1,
-        }
 
         const wrapper = useTransaction ? transaction : dummyTransaction
 
         let task: TaskRun
         await wrapper(async (repositories) => {
+            const effectiveConfig = await runtimeConfig
+                .withRepositories(repositories)
+                .getEffective()
+            const taskData: TaskRunCreate = {
+                type: taskType,
+                entryId: entry.id,
+                status: 'pending',
+                pipelineVersion: 1,
+                config: taskDef.selectConfig(effectiveConfig),
+            }
             task = await repositories.tasks.createTask(taskData)
             const ctx = await taskDef.buildContext(entry)
 
@@ -123,7 +138,9 @@ export const createOrchestrator = (
             )
         }
 
-        const input = await stepDef.buildInput(nextStep.context)
+        const input = await stepDef.buildInput(
+            nextStep.context as PipelineContext,
+        )
         await repositories.tasks.enqueueStep(nextStep.id, input)
 
         try {
@@ -251,7 +268,10 @@ export const createOrchestrator = (
         }
 
         const output = await stepDef.validateOutput(event.output)
-        const ctx = await stepDef.updateContext(step.context, output)
+        const ctx = await stepDef.updateContext(
+            step.context as PipelineContext,
+            output,
+        )
 
         const nextStep = task.steps
             .toSorted((a, b) => a.position - b.position)
@@ -260,10 +280,7 @@ export const createOrchestrator = (
             await repositories.tasks.finishStep(step.id, output as object)
 
             if (nextStep) {
-                await repositories.tasks.setStepContext(
-                    nextStep.id,
-                    ctx as object,
-                )
+                await repositories.tasks.setStepContext(nextStep.id, ctx)
             } else {
                 await repositories.tasks.finishTask(task.id)
             }
@@ -301,7 +318,15 @@ export const createOrchestrator = (
     const withRepositories = (
         repositories: RepositoryRegistry,
         transaction_?: TransactionRunner,
-    ) => createOrchestrator(repositories, transaction_ ?? transaction, worker)
+    ) => {
+        const nextTransaction = transaction_ ?? transaction
+        return createOrchestrator(
+            repositories,
+            nextTransaction,
+            worker,
+            runtimeConfig.withRepositories(repositories, nextTransaction),
+        )
+    }
 
     return {
         createTaskForEntry,

@@ -47,7 +47,10 @@ const MediaPrepareStep: StepDefinition<
         }
     },
 
-    updateContext: async (ctx, output) => ({ ...ctx }),
+    updateContext: async (ctx, output) => {
+        void output
+        return { ...ctx }
+    },
 }
 
 export const VideoRecordSummaryTask: TaskDefinition = {
@@ -55,6 +58,10 @@ export const VideoRecordSummaryTask: TaskDefinition = {
     pipeline: [MediaPrepareStep],
 
     canUseEntry: (entry) => entry.type === 'video_record',
+    selectConfig: (config) => ({
+        // 'video.frameInterval': config['video.frameInterval'],
+        // 'video.frames.enabled': config['video.frames.enabled'],
+    }),
     buildContext: async (entry) => {
         return { entry }
     },

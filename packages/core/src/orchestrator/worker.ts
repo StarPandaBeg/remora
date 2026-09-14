@@ -1,3 +1,4 @@
+import type { JsonObject } from '../types/json.ts'
 import type { TaskType } from './tasks.ts'
 
 interface WorkerEventStart {
@@ -34,7 +35,7 @@ export interface WorkerTaskCommand {
     type: string
     taskId: number
     input: Record<string, unknown>
-    config: Record<string, unknown>
+    config: JsonObject
 }
 
 export const workerEventCallbackPath = '/v1/tasks/events'

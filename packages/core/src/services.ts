@@ -1,3 +1,4 @@
+import type { RuntimeConfigService } from './api/config/config.ts'
 import { createEntryService } from './api/entries/entries.service.ts'
 import { createEntryFileService } from './api/entries/entry-files.service.ts'
 import { createFolderService } from './api/folders/folders.service.ts'
@@ -12,6 +13,7 @@ export interface ServiceDependencies {
     storage: ObjectStorage
     transaction: TransactionRunner
     orchestrator: Orchestrator
+    runtimeConfig: RuntimeConfigService
 }
 
 export function createServices(dependencies: ServiceDependencies) {
@@ -21,6 +23,7 @@ export function createServices(dependencies: ServiceDependencies) {
     })
 
     return {
+        config: dependencies.runtimeConfig,
         entries: createEntryService({
             files,
             repositories: dependencies.repositories,
