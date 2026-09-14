@@ -7,11 +7,12 @@ import type {
 import type { RepositoryRegistry, TransactionRunner } from '../repositories.ts'
 import { HttpError } from '../util/error.ts'
 import { taskRegistry, type TaskType } from './tasks.ts'
-import type { WorkerEvent } from './worker.ts'
+import type { Worker, WorkerEvent } from './worker.ts'
 
 export const createOrchestrator = (
     repositories: RepositoryRegistry,
     transaction: TransactionRunner,
+    worker: Pick<Worker, 'execute'>,
 ) => {
     const dummyTransaction = (
         f: (r: RepositoryRegistry) => Promise<void>,
@@ -84,10 +85,9 @@ export const createOrchestrator = (
         }
 
         await wrapper(async (repositories) => {
-            const orchestrator = withRepositories(repositories)
             await repositories.tasks.startTask(task.id)
-            await orchestrator.runNextStep(task.id)
         })
+        await runNextStep(task.id)
     }
 
     const runNextStep = async (taskId: number) => {
@@ -126,7 +126,36 @@ export const createOrchestrator = (
         const input = await stepDef.buildInput(nextStep.context)
         await repositories.tasks.enqueueStep(nextStep.id, input)
 
-        // todo: actually run worker
+        try {
+            await worker.execute({
+                pipeline: task.type,
+                type: nextStep.type,
+                taskId: nextStep.id,
+                input: { ...input },
+                config: { ...(task.config ?? {}) },
+            })
+        } catch (error) {
+            const workerError = {
+                code: 'WORKER_EXECUTE_FAILED',
+                message:
+                    error instanceof Error
+                        ? error.message
+                        : 'Unknown worker execution error',
+            }
+
+            try {
+                await transaction(async (repositories) => {
+                    await repositories.tasks.haltStep(nextStep.id, workerError)
+                    await repositories.tasks.haltTask(task.id)
+                })
+            } catch (updateError) {
+                throw new AggregateError(
+                    [error, updateError],
+                    `Worker execution failed and task ${task.id} could not be marked as failed`,
+                    { cause: updateError },
+                )
+            }
+        }
     }
 
     const handleWorkerEvent = async (event: WorkerEvent) => {
@@ -272,7 +301,7 @@ export const createOrchestrator = (
     const withRepositories = (
         repositories: RepositoryRegistry,
         transaction_?: TransactionRunner,
-    ) => createOrchestrator(repositories, transaction_ ?? transaction)
+    ) => createOrchestrator(repositories, transaction_ ?? transaction, worker)
 
     return {
         createTaskForEntry,

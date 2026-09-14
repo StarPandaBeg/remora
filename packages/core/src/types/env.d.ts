@@ -3,6 +3,8 @@ declare namespace NodeJS {
         HOST?: string
         PORT?: `${number}`
         PUBLIC_BASE_URL?: string
+        WORKER_URL?: string
+        WORKER_REQUEST_TIMEOUT?: `${number}`
         POSTGRES_URL?: string
         MINIO_ENDPOINT?: string
         MINIO_PORT?: `${number}`
