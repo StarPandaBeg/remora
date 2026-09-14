@@ -10,6 +10,7 @@ class ApiModel(BaseModel):
 
 
 class ExecuteTaskRequest(ApiModel):
+    pipeline: str = Field(min_length=1)
     type: str = Field(min_length=1)
     task_id: int = Field(alias="taskId", gt=0)
     callback_url: HttpUrl = Field(alias="callbackUrl")

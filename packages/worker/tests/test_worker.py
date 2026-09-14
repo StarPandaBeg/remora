@@ -1,5 +1,6 @@
 import asyncio
 import json
+import logging
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -89,6 +90,7 @@ def make_settings(**overrides: object) -> Settings:
 
 def payload(**overrides: object) -> dict[str, object]:
     values: dict[str, object] = {
+        "pipeline": "video_summary",
         "type": "test",
         "taskId": 123,
         "callbackUrl": CALLBACK_URL,
@@ -134,13 +136,19 @@ def test_execute_payload_and_callback_url_validation() -> None:
     )
 
     with TestClient(app) as client:
+        without_pipeline = payload()
+        without_pipeline.pop("pipeline")
         missing_field = client.post(
             "/tasks/execute",
-            json={"type": "test", "taskId": 1},
+            json=without_pipeline,
         )
         invalid_url = client.post(
             "/tasks/execute",
             json=payload(callbackUrl="ftp://core.example/callback"),
+        )
+        empty_pipeline = client.post(
+            "/tasks/execute",
+            json=payload(pipeline=""),
         )
         invalid_objects = client.post(
             "/tasks/execute",
@@ -149,6 +157,7 @@ def test_execute_payload_and_callback_url_validation() -> None:
 
     assert missing_field.status_code == 422
     assert invalid_url.status_code == 422
+    assert empty_pipeline.status_code == 422
     assert invalid_objects.status_code == 422
 
 
@@ -342,8 +351,13 @@ def test_health() -> None:
     assert response.json() == {"status": "ok"}
 
 
-def test_execute_returns_202_and_successful_handler_sends_lifecycle() -> None:
-    response, requests = run_task_and_collect(payload(taskId=456))
+def test_execute_returns_202_and_successful_handler_sends_lifecycle(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO)
+    response, requests = run_task_and_collect(
+        payload(pipeline="pipeline-not-used-for-dispatch", taskId=456)
+    )
     events = event_bodies(requests)
 
     assert response.status_code == 202
@@ -357,9 +371,15 @@ def test_execute_returns_202_and_successful_handler_sends_lifecycle() -> None:
     assert [event["progress"] for event in events[1:3]] == [25.0, 75.0]
     assert events[-1]["output"] == {"message": "Test task completed"}
     assert all(event["taskId"] == 456 for event in events)
+    assert all("pipeline" not in event for event in events)
     assert all(str(request.url) == CALLBACK_URL for request in requests)
     assert all(request.headers["x-worker-secret"] == SECRET for request in requests)
     assert all("worker-secret" not in request.content.decode() for request in requests)
+    assert any(
+        "pipeline=pipeline-not-used-for-dispatch type=test taskId=456"
+        in record.getMessage()
+        for record in caplog.records
+    )
 
 
 def test_failing_handler_sends_safe_failure_and_worker_keeps_running() -> None:
@@ -492,4 +512,5 @@ def test_request_model_accepts_json_objects() -> None:
     )
 
     assert command.task_id == 123
+    assert command.pipeline == "video_summary"
     assert command.input["nested"] == [1, True, None]

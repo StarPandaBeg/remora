@@ -88,9 +88,10 @@ async def _run_handler(
         )
     except Exception:
         logger.exception(
-            "Handler failed for taskId=%d type=%s",
-            command.task_id,
+            "Handler failed pipeline=%s type=%s taskId=%d",
+            command.pipeline,
             command.type,
+            command.task_id,
         )
         await _send_final(
             sender,
@@ -111,9 +112,10 @@ async def _run_handler(
         completed_event,
     )
     logger.info(
-        "Task completed taskId=%d type=%s",
-        command.task_id,
+        "Task completed pipeline=%s type=%s taskId=%d",
+        command.pipeline,
         command.type,
+        command.task_id,
     )
 
 
@@ -128,9 +130,10 @@ async def execute_task(
 
     if handler is None:
         logger.warning(
-            "Unknown task type taskId=%d type=%s",
-            command.task_id,
+            "Unknown task type pipeline=%s type=%s taskId=%d",
+            command.pipeline,
             command.type,
+            command.task_id,
         )
         await _send_final(
             sender,
@@ -147,8 +150,9 @@ async def execute_task(
 
     async with semaphore:
         logger.info(
-            "Task execution started taskId=%d type=%s",
-            command.task_id,
+            "Task execution started pipeline=%s type=%s taskId=%d",
+            command.pipeline,
             command.type,
+            command.task_id,
         )
         await _run_handler(command, handler, sender, storage)

@@ -25,9 +25,10 @@ async def _execute_safely(
         await execute_task(command, sender, semaphore, storage)
     except Exception:
         logger.exception(
-            "Unexpected background task error taskId=%d type=%s",
-            command.task_id,
+            "Unexpected background task error pipeline=%s type=%s taskId=%d",
+            command.pipeline,
             command.type,
+            command.task_id,
         )
 
 
@@ -74,9 +75,10 @@ def create_app(
         request: Request,
     ) -> ExecuteTaskResponse:
         logger.info(
-            "Task accepted taskId=%d type=%s",
-            command.task_id,
+            "Task accepted pipeline=%s type=%s taskId=%d",
+            command.pipeline,
             command.type,
+            command.task_id,
         )
         task = asyncio.create_task(
             _execute_safely(
