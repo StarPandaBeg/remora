@@ -9,6 +9,7 @@ void describe('infrastructure configuration', () => {
             HOST: '0.0.0.0',
             PORT: '4100',
             PUBLIC_BASE_URL: 'https://core.example/',
+            WORKER_CALLBACK_BASE_URL: 'http://core.internal:3000/',
             WORKER_URL: 'http://worker:8000/',
             WORKER_REQUEST_TIMEOUT: '2500',
             POSTGRES_URL: 'postgres://remora:password@database/remora',
@@ -26,6 +27,7 @@ void describe('infrastructure configuration', () => {
         assert.equal(config.host, '0.0.0.0')
         assert.equal(config.port, 4100)
         assert.equal(config.publicBaseUrl, 'https://core.example')
+        assert.equal(config.workerCallbackBaseUrl, 'http://core.internal:3000')
         assert.equal(config.workerUrl, 'http://worker:8000')
         assert.equal(
             config.postgresUrl,

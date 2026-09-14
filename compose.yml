@@ -41,8 +41,8 @@ services:
         environment:
             WORKER_SECRET: ${WORKER_SECRET}
             MINIO_ENDPOINT: remora-minio
-            MINIO_PORT: ${MINIO_PORT:-9000}
-            MINIO_USE_SSL: ${MINIO_USE_SSL:-false}
+            MINIO_PORT: 9000
+            MINIO_USE_SSL: 'false'
             MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-admin}
             MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-admin123123}
             MINIO_BUCKET: ${MINIO_BUCKET:-remora}
@@ -67,6 +67,60 @@ services:
             interval: 10s
             timeout: 5s
             retries: 5
+
+    remora-db-init:
+        build:
+            context: .
+            dockerfile: packages/core/Dockerfile
+            target: build
+        environment:
+            POSTGRES_URL: postgres://remora:password@remora-db:5432/remora
+        command:
+            [
+                'npm',
+                'run',
+                'db:push',
+                '--workspace=@remora/core',
+                '--',
+                '--force',
+            ]
+        depends_on:
+            remora-db:
+                condition: service_healthy
+        restart: 'no'
+
+    remora-core:
+        build:
+            context: .
+            dockerfile: packages/core/Dockerfile
+            target: runtime
+        container_name: remora-core
+        environment:
+            HOST: 0.0.0.0
+            PORT: 3000
+            PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://127.0.0.1:3000}
+            WORKER_CALLBACK_BASE_URL: http://remora-core:3000
+            WORKER_URL: http://remora-worker:8000
+            WORKER_REQUEST_TIMEOUT: ${WORKER_REQUEST_TIMEOUT:-10000}
+            WORKER_SECRET: ${WORKER_SECRET}
+            POSTGRES_URL: postgres://remora:password@remora-db:5432/remora
+            MINIO_ENDPOINT: remora-minio
+            MINIO_PORT: 9000
+            MINIO_USE_SSL: 'false'
+            MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY:-admin}
+            MINIO_SECRET_KEY: ${MINIO_SECRET_KEY:-admin123123}
+            MINIO_BUCKET: ${MINIO_BUCKET:-remora}
+            MINIO_REGION: ${MINIO_REGION:-us-east-1}
+            MAX_FILE_SIZE_BYTES: ${MAX_FILE_SIZE_BYTES:-10737418240}
+        ports:
+            - '${PORT:-3000}:3000'
+        depends_on:
+            remora-db-init:
+                condition: service_completed_successfully
+            remora-minio:
+                condition: service_healthy
+            remora-worker:
+                condition: service_healthy
 
 volumes:
     pgdata:

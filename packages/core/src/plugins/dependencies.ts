@@ -31,7 +31,7 @@ const dependenciesPlugin: FastifyPluginAsync<DependencyOptions> = async (
     const transaction = createTransactionRunner(db, repositories)
     const runtimeConfig = createRuntimeConfigService(repositories, transaction)
     const worker = createWorker({
-        publicBaseUrl: options.config.publicBaseUrl,
+        publicBaseUrl: options.config.workerCallbackBaseUrl,
         workerUrl: options.config.workerUrl,
         requestTimeoutMs: options.config.workerRequestTimeoutMs,
     })

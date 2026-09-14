@@ -9,6 +9,7 @@ const environmentSchema = z.object({
     HOST: z.string().default('127.0.0.1'),
     PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
     PUBLIC_BASE_URL: z.url().optional(),
+    WORKER_CALLBACK_BASE_URL: z.url().optional(),
     WORKER_URL: z.url().default('http://127.0.0.1:8000'),
     WORKER_REQUEST_TIMEOUT: z.coerce.number().int().positive().default(10_000),
     POSTGRES_URL: z.string().min(1),
@@ -37,6 +38,7 @@ export interface AppConfig {
     host: string
     port: number
     publicBaseUrl: string
+    workerCallbackBaseUrl: string
     workerUrl: string
     workerRequestTimeoutMs: number
     postgresUrl: string
@@ -58,11 +60,16 @@ export function loadConfig(
 ): AppConfig {
     const parsed = environmentSchema.parse(environment)
 
+    const publicBaseUrl = (
+        parsed.PUBLIC_BASE_URL ?? `http://${parsed.HOST}:${parsed.PORT}`
+    ).replace(/\/+$/, '')
+
     return {
         host: parsed.HOST,
         port: parsed.PORT,
-        publicBaseUrl: (
-            parsed.PUBLIC_BASE_URL ?? `http://${parsed.HOST}:${parsed.PORT}`
+        publicBaseUrl,
+        workerCallbackBaseUrl: (
+            parsed.WORKER_CALLBACK_BASE_URL ?? publicBaseUrl
         ).replace(/\/+$/, ''),
         workerUrl: parsed.WORKER_URL.replace(/\/+$/, ''),
         workerRequestTimeoutMs: parsed.WORKER_REQUEST_TIMEOUT,
