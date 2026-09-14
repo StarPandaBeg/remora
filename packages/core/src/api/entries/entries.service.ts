@@ -1,4 +1,5 @@
 import type { EntryCreate } from '../../database/schema.ts'
+import type { Orchestrator } from '../../orchestrator/orchestrator.ts'
 import type {
     RepositoryRegistry,
     TransactionRunner,
@@ -9,7 +10,6 @@ import {
 } from '../../storage/entry-file-validation.ts'
 import { HttpError } from '../../util/error.ts'
 import { buildTree, type TreeNode } from '../../util/tree.ts'
-import { createTaskService } from '../tasks/tasks.service.ts'
 import type { TreeRow, UpdateEntryInput } from './entries.model.ts'
 import type {
     EntryFileService,
@@ -45,12 +45,14 @@ interface EntryServiceDependencies {
     files: EntryFileService
     repositories: RepositoryRegistry
     transaction: TransactionRunner
+    orchestrator: Orchestrator
 }
 
 export function createEntryService({
     files,
     repositories,
     transaction,
+    orchestrator,
 }: EntryServiceDependencies) {
     const ensureEntryExists = async (id: number) => {
         const entry = await repositories.entries.findById(id)
@@ -101,9 +103,11 @@ export function createEntryService({
                 entry = entryWithFile
             }
 
-            await createTaskService(
-                transactionRepositories,
-            ).createTasksForEntry(entry)
+            const o = orchestrator.withRepositories(transactionRepositories)
+            const tasks = o.applicableTaskTypes(entry)
+            for (const t of tasks) {
+                await o.createTaskForEntry(entry, t, false)
+            }
             return entry
         })
     }

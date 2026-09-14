@@ -87,7 +87,19 @@ export function createTaskRepository(db: DbExecutor) {
     const cancelTask = (id: number) => _finishTask(id, 'cancelled')
     const finishTask = (id: number) => _finishTask(id, 'completed')
 
-    const startStep = async (id: number, input: object) => {
+    const setStepContext = async (id: number, context: object) => {
+        const [entry] = await db
+            .update(taskSteps)
+            .set({
+                context,
+                updatedAt: new Date(),
+            })
+            .where(eq(taskSteps.id, id))
+            .returning()
+        return entry
+    }
+
+    const enqueueStep = async (id: number, input: object) => {
         const [entry] = await db
             .update(taskSteps)
             .set({
@@ -140,8 +152,9 @@ export function createTaskRepository(db: DbExecutor) {
         haltTask,
         cancelTask,
         finishTask,
-        startStep,
+        enqueueStep,
         haltStep,
         finishStep,
+        setStepContext,
     }
 }

@@ -3,6 +3,7 @@ import fastifyPlugin from 'fastify-plugin'
 
 import type { AppConfig } from '../config.ts'
 import { createDatabase, type AppDatabase } from '../database/index.ts'
+import { createOrchestrator } from '../orchestrator/orchestrator.ts'
 import { createRepositories, createTransactionRunner } from '../repositories.ts'
 import { createServices } from '../services.ts'
 import { createMinioStorage } from '../storage/minio-storage.ts'
@@ -25,16 +26,20 @@ const dependenciesPlugin: FastifyPluginAsync<DependencyOptions> = async (
     await storage.ensureBucket()
 
     const repositories = createRepositories(db)
+    const transaction = createTransactionRunner(db, repositories)
+    const orchestrator = createOrchestrator(repositories, transaction)
     const services = createServices({
         publicBaseUrl: options.config.publicBaseUrl,
         repositories,
         storage,
-        transaction: createTransactionRunner(db, repositories),
+        transaction,
+        orchestrator,
     })
 
     fastify.decorate('config', options.config)
     fastify.decorate('db', db)
     fastify.decorate('repositories', repositories)
+    fastify.decorate('orchestrator', orchestrator)
     fastify.decorate('services', services)
     fastify.decorate('storage', storage)
 
