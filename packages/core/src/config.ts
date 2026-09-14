@@ -8,6 +8,7 @@ const booleanFromEnvironment = z
 const environmentSchema = z.object({
     HOST: z.string().default('127.0.0.1'),
     PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
+    PUBLIC_BASE_URL: z.url().optional(),
     POSTGRES_URL: z.string().min(1),
     MINIO_ENDPOINT: z.string().min(1).default('127.0.0.1'),
     MINIO_PORT: z.coerce.number().int().min(1).max(65_535).default(9000),
@@ -21,16 +22,17 @@ const environmentSchema = z.object({
         .regex(/^[a-z0-9][a-z0-9.-]*[a-z0-9]$/)
         .default('remora'),
     MINIO_REGION: z.string().min(1).default('us-east-1'),
-    MAX_VIDEO_SIZE_BYTES: z.coerce
+    MAX_FILE_SIZE_BYTES: z.coerce
         .number()
         .int()
         .positive()
-        .default(1_073_741_824),
+        .default(10_737_418_240),
 })
 
 export interface AppConfig {
     host: string
     port: number
+    publicBaseUrl: string
     postgresUrl: string
     minio: {
         endpoint: string
@@ -41,7 +43,7 @@ export interface AppConfig {
         bucket: string
         region: string
     }
-    maxVideoSizeBytes: number
+    maxFileSizeBytes: number
 }
 
 export function loadConfig(
@@ -52,6 +54,9 @@ export function loadConfig(
     return {
         host: parsed.HOST,
         port: parsed.PORT,
+        publicBaseUrl: (
+            parsed.PUBLIC_BASE_URL ?? `http://${parsed.HOST}:${parsed.PORT}`
+        ).replace(/\/+$/, ''),
         postgresUrl: parsed.POSTGRES_URL,
         minio: {
             endpoint: parsed.MINIO_ENDPOINT,
@@ -62,6 +67,6 @@ export function loadConfig(
             bucket: parsed.MINIO_BUCKET,
             region: parsed.MINIO_REGION,
         },
-        maxVideoSizeBytes: parsed.MAX_VIDEO_SIZE_BYTES,
+        maxFileSizeBytes: parsed.MAX_FILE_SIZE_BYTES,
     }
 }

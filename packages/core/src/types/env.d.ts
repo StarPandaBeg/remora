@@ -2,6 +2,7 @@ declare namespace NodeJS {
     interface ProcessEnv {
         HOST?: string
         PORT?: `${number}`
+        PUBLIC_BASE_URL?: string
         POSTGRES_URL?: string
         MINIO_ENDPOINT?: string
         MINIO_PORT?: `${number}`
@@ -10,6 +11,6 @@ declare namespace NodeJS {
         MINIO_SECRET_KEY?: string
         MINIO_BUCKET?: string
         MINIO_REGION?: string
-        MAX_VIDEO_SIZE_BYTES?: `${number}`
+        MAX_FILE_SIZE_BYTES?: `${number}`
     }
 }

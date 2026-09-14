@@ -80,6 +80,19 @@ export function createEntryRepository(db: DbExecutor) {
         return entry
     }
 
+    const updateMetadata = async (
+        id: number,
+        metadata: EntryMetadata,
+    ): Promise<Entry | undefined> => {
+        const [entry] = await db
+            .update(entries)
+            .set({ metadata, updatedAt: new Date() })
+            .where(eq(entries.id, id))
+            .returning()
+
+        return entry
+    }
+
     const move = async (
         id: number,
         folderId: number,
@@ -190,5 +203,6 @@ export function createEntryRepository(db: DbExecutor) {
         move,
         remove,
         update,
+        updateMetadata,
     }
 }

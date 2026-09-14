@@ -37,7 +37,7 @@ export const entryDtoSchema: z.ZodType<EntryDto> = z.object({
     id: z.number().int().positive(),
     folderId: z.number().int().positive(),
     name: z.string(),
-    type: z.enum(['note', 'video_record']),
+    type: z.enum(['note', 'video_record', 'file']),
     content: z.string().nullable(),
     metadata: z.record(z.string(), z.unknown()),
 })
@@ -58,7 +58,7 @@ export const entryTreeDtoSchema: z.ZodType<EntryTreeDto> = z.lazy(() =>
             id: z.number().int().positive(),
             parentId: z.number().int().positive(),
             name: z.string(),
-            type: z.enum(['note', 'video_record']),
+            type: z.enum(['note', 'video_record', 'file']),
             content: z.string().nullable(),
             metadata: z.record(z.string(), z.unknown()),
             depth: z.number().int().min(0),

@@ -1,19 +1,21 @@
-import { randomUUID } from 'node:crypto'
-import type { Readable } from 'node:stream'
-
-import type { EntryCreate, EntryMetadata } from '../../database/schema.ts'
+import type { EntryCreate } from '../../database/schema.ts'
 import type {
     RepositoryRegistry,
     TransactionRunner,
 } from '../../repositories.ts'
 import {
-    StorageCompensationError,
-    type ObjectStorage,
-} from '../../storage/object-storage.ts'
+    isFileEntryType,
+    type FileEntryType,
+} from '../../storage/entry-file-validation.ts'
 import { HttpError } from '../../util/error.ts'
 import { buildTree, type TreeNode } from '../../util/tree.ts'
 import { createTaskService } from '../tasks/tasks.service.ts'
 import type { TreeRow, UpdateEntryInput } from './entries.model.ts'
+import type {
+    EntryFileService,
+    EntryFileUpload,
+    UploadedEntryFile,
+} from './entry-files.service.ts'
 
 export type EntryTreeNode = TreeNode<TreeRow>
 
@@ -24,33 +26,31 @@ export interface CreateNoteInput {
     content: string
 }
 
-export interface CreateVideoInput {
-    type: 'video_record'
+export interface CreateFileEntryInput {
+    type: FileEntryType
     folderId: number
     name: string
-    video: {
-        body: Readable
-        extension: string
-        mimeType: string
-        originalName: string
-        size: number
-    }
+    file: EntryFileUpload
 }
 
-export type CreateEntryInput = CreateNoteInput | CreateVideoInput
+export type CreateEntryInput = CreateNoteInput | CreateFileEntryInput
+
+function isFileEntryInput(
+    input: CreateEntryInput,
+): input is CreateFileEntryInput {
+    return isFileEntryType(input.type)
+}
 
 interface EntryServiceDependencies {
+    files: EntryFileService
     repositories: RepositoryRegistry
-    storage: ObjectStorage
     transaction: TransactionRunner
-    createId?: () => string
 }
 
 export function createEntryService({
+    files,
     repositories,
-    storage,
     transaction,
-    createId = randomUUID,
 }: EntryServiceDependencies) {
     const ensureEntryExists = async (id: number) => {
         const entry = await repositories.entries.findById(id)
@@ -77,65 +77,61 @@ export function createEntryService({
         return entry
     }
 
-    const createNote = async (input: CreateNoteInput) => {
-        await ensureFolderExists(input.folderId)
-        return await repositories.entries.create(input)
-    }
+    const persistEntry = async (
+        input: EntryCreate,
+        uploadedFile?: UploadedEntryFile,
+    ) => {
+        return await transaction(async (transactionRepositories) => {
+            let entry = await transactionRepositories.entries.create(input)
 
-    const createVideo = async (input: CreateVideoInput) => {
-        await ensureFolderExists(input.folderId)
-
-        const objectKey = `entries/video/${createId()}/original${input.video.extension}`
-        const reference = await storage.putObject({
-            objectKey,
-            body: input.video.body,
-            size: input.video.size,
-            contentType: input.video.mimeType,
-        })
-        const metadata: EntryMetadata = {
-            originalVideo: {
-                ...reference,
-                mimeType: input.video.mimeType,
-                originalName: input.video.originalName,
-                size: input.video.size,
-            },
-        }
-
-        try {
-            return await transaction(async (transactionRepositories) => {
-                const entryData: EntryCreate = {
-                    type: input.type,
-                    folderId: input.folderId,
-                    name: input.name,
-                    content: null,
-                    metadata,
+            if (uploadedFile !== undefined) {
+                const metadata = files.metadataForEntry(uploadedFile, entry.id)
+                const entryWithFile =
+                    await transactionRepositories.entries.updateMetadata(
+                        entry.id,
+                        metadata,
+                    )
+                if (entryWithFile === undefined) {
+                    throw new HttpError(
+                        'ENTRY_METADATA_UPDATE_FAILED',
+                        `Entry ${entry.id} metadata could not be updated`,
+                        500,
+                    )
                 }
-                const entry =
-                    await transactionRepositories.entries.create(entryData)
-                await createTaskService(transactionRepositories).createTask(
-                    entry.id,
-                    'video_record_summary',
-                )
-                return entry
-            })
-        } catch (operationError) {
-            try {
-                await storage.removeObject(reference)
-            } catch (cleanupError) {
-                throw new StorageCompensationError(
-                    operationError,
-                    cleanupError,
-                    reference,
-                )
+                entry = entryWithFile
             }
-            throw operationError
-        }
+
+            await createTaskService(
+                transactionRepositories,
+            ).createTasksForEntry(entry)
+            return entry
+        })
     }
 
-    const create = async (input: CreateEntryInput) =>
-        input.type === 'note'
-            ? await createNote(input)
-            : await createVideo(input)
+    const create = async (input: CreateEntryInput) => {
+        await ensureFolderExists(input.folderId)
+
+        if (!isFileEntryInput(input)) return await persistEntry(input)
+
+        return await files.uploadAndPersist(
+            input.file,
+            async (uploadedFile) =>
+                await persistEntry(
+                    {
+                        type: input.type,
+                        folderId: input.folderId,
+                        name: input.name,
+                        content: null,
+                    },
+                    uploadedFile,
+                ),
+        )
+    }
+
+    const getFile = async (id: number) => {
+        const entry = await ensureEntryExists(id)
+        return await files.open(entry.metadata)
+    }
 
     const move = async (id: number, folderId: number) => {
         await ensureEntryExists(id)
@@ -172,6 +168,7 @@ export function createEntryService({
 
     return {
         create,
+        getFile,
         getTree,
         move,
         remove,

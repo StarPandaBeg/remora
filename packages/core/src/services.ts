@@ -1,18 +1,30 @@
 import { createEntryService } from './api/entries/entries.service.ts'
+import { createEntryFileService } from './api/entries/entry-files.service.ts'
 import { createFolderService } from './api/folders/folders.service.ts'
 import { createTaskService } from './api/tasks/tasks.service.ts'
 import type { RepositoryRegistry, TransactionRunner } from './repositories.ts'
 import type { ObjectStorage } from './storage/object-storage.ts'
 
 export interface ServiceDependencies {
+    publicBaseUrl: string
     repositories: RepositoryRegistry
     storage: ObjectStorage
     transaction: TransactionRunner
 }
 
 export function createServices(dependencies: ServiceDependencies) {
+    const files = createEntryFileService({
+        publicBaseUrl: dependencies.publicBaseUrl,
+        storage: dependencies.storage,
+    })
+
     return {
-        entries: createEntryService(dependencies),
+        entries: createEntryService({
+            files,
+            repositories: dependencies.repositories,
+            transaction: dependencies.transaction,
+        }),
+        files,
         folders: createFolderService(dependencies.repositories.folders),
         tasks: createTaskService(
             dependencies.repositories,

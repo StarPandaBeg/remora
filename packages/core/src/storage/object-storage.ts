@@ -14,6 +14,7 @@ export interface PutObjectInput {
 
 export interface ObjectStorage {
     ensureBucket: () => Promise<void>
+    getObject: (reference: ObjectReference) => Promise<Readable>
     putObject: (input: PutObjectInput) => Promise<ObjectReference>
     removeObject: (reference: ObjectReference) => Promise<void>
 }

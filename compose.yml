@@ -20,11 +20,11 @@ services:
         image: firstfinger/minio:latest
         container_name: remora-minio
         environment:
-            MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-remora}
-            MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-remora-development-secret}
+            MINIO_ROOT_USER: admin
+            MINIO_ROOT_PASSWORD: admin123123
         ports:
             - '9000:9000'
-            - '9001:9001'
+            - '9001:9002'
         volumes:
             - miniodata:/data
         healthcheck:

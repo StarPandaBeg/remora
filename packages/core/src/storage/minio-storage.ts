@@ -26,6 +26,9 @@ export function createMinioStorage(
 
     return {
         ensureBucket,
+        async getObject(reference) {
+            return await client.getObject(reference.bucket, reference.objectKey)
+        },
         async putObject({ body, contentType, objectKey, size }) {
             await client.putObject(config.bucket, objectKey, body, size, {
                 'Content-Type': contentType,

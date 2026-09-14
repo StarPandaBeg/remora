@@ -1,7 +1,3 @@
-import { createReadStream } from 'node:fs'
-import { open, stat } from 'node:fs/promises'
-import { basename } from 'node:path'
-
 import type { ZodTypeProvider } from '@fastify/type-provider-zod'
 import type {
     FastifyPluginCallback,
@@ -11,7 +7,16 @@ import type {
 import fastifyPlugin from 'fastify-plugin'
 import { z } from 'zod/v4'
 
-import { validateVideoFile } from '../../storage/video.ts'
+import { entryType } from '../../database/schema.ts'
+import { sendFile } from '../../http/file-response.ts'
+import { readMultipartForm } from '../../http/multipart.ts'
+import { parseHttpInput } from '../../http/validation.ts'
+import {
+    fileEntryRegistry,
+    isFileEntryType,
+    validateEntryFile,
+    type FileEntryType,
+} from '../../storage/entry-file-validation.ts'
 import { HttpError } from '../../util/error.ts'
 import {
     entryDtoSchema,
@@ -21,6 +26,7 @@ import {
 } from './entries.dto.ts'
 
 const positiveIdSchema = z.coerce.number().int().positive()
+const entryTypeSchema = z.enum(entryType.enumValues)
 
 export const entryParamsSchema = z.object({
     id: positiveIdSchema,
@@ -39,13 +45,32 @@ export const videoEntryFieldsSchema = z.strictObject({
     name: z.string().trim().min(1).max(255),
 })
 
+export const fileEntryFieldsSchema = z.strictObject({
+    type: z.literal('file'),
+    folderId: positiveIdSchema,
+    name: z.string().trim().min(1).max(255),
+})
+
+const fileEntryTypeSchema = z.enum(
+    Object.keys(fileEntryRegistry) as [FileEntryType, ...FileEntryType[]],
+)
+const fileBackedEntryFieldsSchema = z.strictObject({
+    type: fileEntryTypeSchema,
+    folderId: positiveIdSchema,
+    name: z.string().trim().min(1).max(255),
+})
+
 export const videoEntryBodySchema = videoEntryFieldsSchema.extend({
-    video: z.unknown(),
+    file: z.unknown(),
+})
+export const fileEntryBodySchema = fileEntryFieldsSchema.extend({
+    file: z.unknown(),
 })
 
 export const createEntryBodySchema = z.discriminatedUnion('type', [
     noteEntryBodySchema,
     videoEntryBodySchema,
+    fileEntryBodySchema,
 ])
 
 export const updateEntryBodySchema = z
@@ -80,97 +105,102 @@ type UpdateEntryBody = z.output<typeof updateEntryBodySchema>
 type MoveEntryBody = z.output<typeof moveEntryBodySchema>
 type EntryTreeQuery = z.output<typeof entryTreeQuerySchema>
 
-function readMultipartField(
-    values: Record<string, unknown>,
-    fieldName: string,
-): unknown {
-    const field = values[fieldName]
-    if (
-        field === null ||
-        typeof field !== 'object' ||
-        Array.isArray(field) ||
-        !('value' in field)
-    ) {
-        return undefined
-    }
-    return field.value
-}
-
-function parseInput<T>(schema: z.ZodType<T>, input: unknown): T {
-    const result = schema.safeParse(input)
-    if (!result.success) {
-        throw new HttpError(
-            'ENTRY_INPUT_INVALID',
-            z.prettifyError(result.error),
-            400,
-        )
-    }
-    return result.data
-}
-
-async function readFileHeader(path: string) {
-    const buffer = Buffer.alloc(12)
-    const file = await open(path, 'r')
-    try {
-        const { bytesRead } = await file.read(buffer, 0, buffer.length, 0)
-        return buffer.subarray(0, bytesRead)
-    } finally {
-        await file.close()
-    }
-}
-
 export async function createHandler(
     request: FastifyRequest<{ Body: unknown }>,
     reply: FastifyReply,
 ) {
     if (!request.isMultipart()) {
-        const input = parseInput(noteEntryBodySchema, request.body)
+        const input = parseHttpInput(
+            noteEntryBodySchema,
+            request.body,
+            'ENTRY_INPUT_INVALID',
+        )
         const entry = await request.server.services.entries.create(input)
         return reply.code(201).send(toEntryDto(entry))
     }
 
-    const { files, values } = await request.saveRequestFiles()
+    const { fields: rawFields, files } = await readMultipartForm(request)
+    const entryType = parseHttpInput(
+        entryTypeSchema,
+        rawFields.type,
+        'ENTRY_INPUT_INVALID',
+    )
+
+    if (!isFileEntryType(entryType)) {
+        if (files.length !== 0) {
+            throw new HttpError(
+                'ENTRY_FILE_UNEXPECTED',
+                `Entry type ${entryType} does not accept a file`,
+                400,
+            )
+        }
+
+        const input = parseHttpInput(
+            noteEntryBodySchema,
+            rawFields,
+            'ENTRY_INPUT_INVALID',
+        )
+        const entry = await request.server.services.entries.create(input)
+        return reply.code(201).send(toEntryDto(entry))
+    }
+
     const uploadedFile = files[0]
     if (
         files.length !== 1 ||
         uploadedFile === undefined ||
-        uploadedFile.fieldname !== 'video'
+        uploadedFile.fieldName !== 'file'
     ) {
         throw new HttpError(
-            'VIDEO_FILE_REQUIRED',
-            'Exactly one file must be provided in the video field',
+            'ENTRY_FILE_REQUIRED',
+            'Exactly one file must be provided in the file field',
             400,
         )
     }
 
-    const fields = parseInput(videoEntryFieldsSchema, {
-        type: readMultipartField(values, 'type'),
-        folderId: readMultipartField(values, 'folderId'),
-        name: readMultipartField(values, 'name'),
-    })
-    const fileInfo = await stat(uploadedFile.filepath)
-    const originalName = basename(uploadedFile.filename)
-    const extension = validateVideoFile(
+    const fields = parseHttpInput(
+        fileBackedEntryFieldsSchema,
         {
-            filename: originalName,
-            mimeType: uploadedFile.mimetype,
-            size: fileInfo.size,
-            header: await readFileHeader(uploadedFile.filepath),
+            type: rawFields.type,
+            folderId: rawFields.folderId,
+            name: rawFields.name,
         },
-        request.server.config.maxVideoSizeBytes,
+        'ENTRY_INPUT_INVALID',
+    )
+    const preparedFile = await uploadedFile.prepare(12)
+    const fileValidation = validateEntryFile(
+        fields.type,
+        {
+            filename: uploadedFile.originalName,
+            mimeType: uploadedFile.mimeType,
+            size: preparedFile.size,
+            header: preparedFile.header,
+        },
+        request.server.config.maxFileSizeBytes,
     )
     const entry = await request.server.services.entries.create({
         ...fields,
-        video: {
-            body: createReadStream(uploadedFile.filepath),
-            extension,
-            mimeType: uploadedFile.mimetype,
-            originalName,
-            size: fileInfo.size,
+        file: {
+            body: preparedFile.body,
+            disposition: fileValidation.disposition,
+            extension: fileValidation.extension,
+            mimeType: uploadedFile.mimeType,
+            originalName: uploadedFile.originalName,
+            size: preparedFile.size,
         },
     })
 
     return reply.code(201).send(toEntryDto(entry))
+}
+
+export async function getFileHandler(
+    request: FastifyRequest<{ Params: EntryParams }>,
+    reply: FastifyReply,
+) {
+    const file = await request.server.services.entries.getFile(
+        request.params.id,
+    )
+
+    return sendFile(reply, file)
 }
 
 export async function updateHandler(
@@ -242,7 +272,7 @@ const entriesApi: FastifyPluginCallback = (fastify, _options, done) => {
             schema: {
                 consumes: ['application/json', 'multipart/form-data'],
                 description:
-                    'Create a note from JSON or a video_record from multipart fields type, folderId, name and video.',
+                    'Create a note from JSON or a file-backed entry from multipart fields type, folderId, name and file.',
                 response: {
                     201: entryDtoSchema,
                 },
@@ -251,6 +281,19 @@ const entriesApi: FastifyPluginCallback = (fastify, _options, done) => {
             },
         },
         createHandler,
+    )
+
+    api.get(
+        '/entries/:id/file',
+        {
+            schema: {
+                params: entryParamsSchema,
+                produces: ['application/octet-stream'],
+                summary: 'Download or view the file attached to an entry',
+                tags: ['entries'],
+            },
+        },
+        getFileHandler,
     )
 
     api.patch(

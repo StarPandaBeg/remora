@@ -6,7 +6,7 @@ const timestamps = {
     createdAt: t.timestamp().defaultNow().notNull(),
     updatedAt: t.timestamp().defaultNow().notNull(),
 }
-export const entryType = t.pgEnum('entryType', ['note', 'video_record'])
+export const entryType = t.pgEnum('entryType', ['note', 'video_record', 'file'])
 export const processingStatus = t.pgEnum('processingStatus', [
     'pending',
     'running',
@@ -25,16 +25,19 @@ export type ProcessingStatus = (typeof processingStatus.enumValues)[number]
 export type ProcessingStepStatus =
     (typeof processingStepStatus.enumValues)[number]
 
-export interface StoredObjectMetadata {
+export interface StoredFileMetadata {
     bucket: string
     objectKey: string
     mimeType: string
     originalName: string
     size: number
+    recordId: string
+    url: string
+    disposition: 'inline' | 'attachment'
 }
 
 export type EntryMetadata = Record<string, unknown> & {
-    originalVideo?: StoredObjectMetadata
+    file?: StoredFileMetadata
 }
 
 export const folders = t.snakeCase.table(

@@ -15,28 +15,18 @@ export function createTaskService(
     repositories: RepositoryRegistry,
     transaction?: TransactionRunner,
 ) {
-    const createTaskWithoutTransaction = async (
-        entryId: number,
-        type: TaskType,
-    ) => {
-        const entry = await repositories.entries.findById(entryId)
-        if (entry == null) {
-            throw new HttpError(
-                'ENTRY_NOT_FOUND',
-                `Entry ${entryId} was not found`,
-            )
-        }
+    const createTaskForEntry = async (entry: Entry, type: TaskType) => {
         const taskDef = taskRegistry[type]
         if (!taskDef || !taskDef.canUseEntry(entry)) {
             throw new HttpError(
                 'ENTRY_NOT_SUPPORTED',
-                `Entry ${entryId} is not supported by pipeline ${type}`,
+                `Entry ${entry.id} is not supported by pipeline ${type}`,
             )
         }
 
         const taskData: TaskRunCreate = {
             type,
-            entryId,
+            entryId: entry.id,
             status: 'pending',
             pipelineVersion: 1,
         }
@@ -56,6 +46,33 @@ export function createTaskService(
         return task
     }
 
+    const createTaskWithoutTransaction = async (
+        entryId: number,
+        type: TaskType,
+    ) => {
+        const entry = await repositories.entries.findById(entryId)
+        if (entry == null) {
+            throw new HttpError(
+                'ENTRY_NOT_FOUND',
+                `Entry ${entryId} was not found`,
+            )
+        }
+        return await createTaskForEntry(entry, type)
+    }
+
+    const applicableTaskTypes = (entry: Entry) =>
+        (Object.keys(taskRegistry) as TaskType[]).filter((type) =>
+            taskRegistry[type].canUseEntry(entry),
+        )
+
+    const createTasksForEntryWithoutTransaction = async (entry: Entry) => {
+        const tasks: TaskRun[] = []
+        for (const type of applicableTaskTypes(entry)) {
+            tasks.push(await createTaskForEntry(entry, type))
+        }
+        return tasks
+    }
+
     const createTask = async (
         entryId: number,
         type: TaskType,
@@ -70,11 +87,18 @@ export function createTaskService(
               )
 
     const canProcessEntry = (entry: Entry) => {
-        for (const taskDef of Object.values(taskRegistry)) {
-            if (taskDef.canUseEntry(entry)) return true
-        }
-        return false
+        return applicableTaskTypes(entry).length > 0
     }
 
-    return { createTask, canProcessEntry }
+    const createTasksForEntry = async (entry: Entry): Promise<TaskRun[]> =>
+        transaction === undefined
+            ? await createTasksForEntryWithoutTransaction(entry)
+            : await transaction(
+                  async (transactionRepositories) =>
+                      await createTaskService(
+                          transactionRepositories,
+                      ).createTasksForEntry(entry),
+              )
+
+    return { createTask, createTasksForEntry, canProcessEntry }
 }

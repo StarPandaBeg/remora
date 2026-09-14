@@ -28,10 +28,10 @@ const app: FastifyPluginAsync<AppOptions> = async (fastify, appOptions) => {
 
     await fastify.register(multipart, {
         limits: {
-            fields: 3,
+            fields: 10,
             files: 1,
-            fileSize: config.maxVideoSizeBytes,
-            parts: 4,
+            fileSize: config.maxFileSizeBytes,
+            parts: 11,
         },
         throwFileSizeLimit: true,
     })

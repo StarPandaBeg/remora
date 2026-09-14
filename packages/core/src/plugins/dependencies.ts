@@ -26,6 +26,7 @@ const dependenciesPlugin: FastifyPluginAsync<DependencyOptions> = async (
 
     const repositories = createRepositories(db)
     const services = createServices({
+        publicBaseUrl: options.config.publicBaseUrl,
         repositories,
         storage,
         transaction: createTransactionRunner(db, repositories),
