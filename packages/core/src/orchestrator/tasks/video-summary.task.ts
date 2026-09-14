@@ -9,6 +9,7 @@ export interface TaskContext extends PipelineContext {
     entry: Entry
     mediaPrepare?: {
         videoObjectKey: string
+        audioObjectKey: string
     }
 }
 
@@ -23,6 +24,7 @@ interface MediaPrepareStepInput {
 interface MediaPrepareStepOutput {
     bucket: string
     videoObjectKey: string
+    audioObjectKey: string
 }
 
 /** Кодирование исходного видео */
@@ -54,7 +56,10 @@ const MediaPrepareStep: StepDefinition<
     updateContext: async (ctx, output) => {
         return {
             ...ctx,
-            mediaPrepare: { videoObjectKey: output.videoObjectKey },
+            mediaPrepare: {
+                videoObjectKey: output.videoObjectKey,
+                audioObjectKey: output.audioObjectKey,
+            },
         }
     },
 }
