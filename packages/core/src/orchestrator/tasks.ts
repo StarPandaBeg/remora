@@ -1,4 +1,4 @@
-import { VideoRecordSummaryTask } from './tasks/video-summary.task.ts'
+import { VideoRecordSummaryTask } from './tasks/video-summary/video-summary.task.ts'
 
 export type TaskType = 'video_summary'
 

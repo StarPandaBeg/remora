@@ -1,17 +1,5 @@
-import type { Entry } from '../../database/schema.ts'
-import type {
-    PipelineContext,
-    StepDefinition,
-    TaskDefinition,
-} from '../types.ts'
-
-export interface TaskContext extends PipelineContext {
-    entry: Entry
-    mediaPrepare?: {
-        videoObjectKey: string
-        audioObjectKey: string
-    }
-}
+import type { StepDefinition } from '../../types.ts'
+import type { TaskContext } from './video-summary.task.ts'
 
 interface MediaPrepareStepInput {
     source: {
@@ -28,7 +16,7 @@ interface MediaPrepareStepOutput {
 }
 
 /** Кодирование исходного видео */
-const MediaPrepareStep: StepDefinition<
+export const MediaPrepareStep: StepDefinition<
     TaskContext,
     MediaPrepareStepInput,
     MediaPrepareStepOutput
@@ -61,18 +49,5 @@ const MediaPrepareStep: StepDefinition<
                 audioObjectKey: output.audioObjectKey,
             },
         }
-    },
-}
-
-export const VideoRecordSummaryTask: TaskDefinition = {
-    type: 'video_summary',
-    pipeline: [MediaPrepareStep],
-
-    canUseEntry: (entry) => entry.type === 'video_record',
-    selectConfig: (config) => ({
-        'video_record.prefer_source': config['video_record.prefer_source'],
-    }),
-    buildContext: async (entry) => {
-        return { entry }
     },
 }

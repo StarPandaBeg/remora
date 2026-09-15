@@ -14,7 +14,7 @@ import {
     createOrchestrator,
     type RuntimeConfigProvider,
 } from './orchestrator.ts'
-import { VideoRecordSummaryTask } from './tasks/video-summary.task.ts'
+import { VideoRecordSummaryTask } from './tasks/video-summary/video-summary.task.ts'
 import type { WorkerTaskCommand } from './worker.ts'
 
 const now = new Date('2026-09-14T10:00:00.000Z')
