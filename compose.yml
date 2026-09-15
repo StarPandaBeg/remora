@@ -1,13 +1,12 @@
 services:
     remora-db:
         image: pgvector/pgvector:pg14
-        container_name: remora-db
         environment:
             POSTGRES_USER: remora
             POSTGRES_PASSWORD: password
             POSTGRES_DB: remora
         ports:
-            - '5432:5432'
+            - '${POSTGRES_PORT:-5432}:5432'
         volumes:
             - pgdata:/var/lib/postgresql/data
         healthcheck:
@@ -18,13 +17,12 @@ services:
 
     remora-minio:
         image: firstfinger/minio:latest
-        container_name: remora-minio
         environment:
             MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-admin}
             MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-admin123123}
         ports:
-            - '9000:9000'
-            - '9001:9002'
+            - '${MINIO_PORT:-9000}:9000'
+            - '${MINIO_CONSOLE_PORT:-9001}:9002'
         volumes:
             - miniodata:/data
         healthcheck:
@@ -37,7 +35,6 @@ services:
     remora-worker:
         build:
             context: ./packages/worker
-        container_name: remora-worker
         environment:
             WORKER_SECRET: ${WORKER_SECRET}
             MINIO_ENDPOINT: remora-minio
@@ -52,7 +49,7 @@ services:
             FINAL_EVENT_RETRY_COUNT: ${FINAL_EVENT_RETRY_COUNT:-3}
             FINAL_EVENT_RETRY_BASE_DELAY: ${FINAL_EVENT_RETRY_BASE_DELAY:-0.25}
         ports:
-            - '8000:8000'
+            - '${WORKER_PORT:-8000}:8000'
         depends_on:
             remora-minio:
                 condition: service_healthy
@@ -75,15 +72,7 @@ services:
             target: build
         environment:
             POSTGRES_URL: postgres://remora:password@remora-db:5432/remora
-        command:
-            [
-                'npm',
-                'run',
-                'db:push',
-                '--workspace=@remora/core',
-                '--',
-                '--force',
-            ]
+        command: ['npm', 'run', 'db:push', '--workspace=@remora/core']
         depends_on:
             remora-db:
                 condition: service_healthy
@@ -94,7 +83,6 @@ services:
             context: .
             dockerfile: packages/core/Dockerfile
             target: runtime
-        container_name: remora-core
         environment:
             HOST: 0.0.0.0
             PORT: 3000

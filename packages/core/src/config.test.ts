@@ -4,6 +4,18 @@ import { describe, it } from 'node:test'
 import { loadConfig } from './config.ts'
 
 void describe('infrastructure configuration', () => {
+    void it('uses the public URL for callbacks by default', () => {
+        const config = loadConfig({
+            PUBLIC_BASE_URL: 'https://core.example/',
+            POSTGRES_URL: 'postgres://remora:password@database/remora',
+            MINIO_ACCESS_KEY: 'access-key',
+            MINIO_SECRET_KEY: 'secret-key',
+        })
+
+        assert.equal(config.publicBaseUrl, 'https://core.example')
+        assert.equal(config.workerCallbackBaseUrl, 'https://core.example')
+    })
+
     void it('continues to load database, worker, server and MinIO settings from env', () => {
         const config = loadConfig({
             HOST: '0.0.0.0',

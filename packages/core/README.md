@@ -31,20 +31,11 @@ Fastify routes -> services -> repositories -> PostgreSQL
 
 ## Требования
 
-- Node.js 22 или новее;
-- npm 10;
-- PostgreSQL;
-- MinIO;
-- запущенный Remora Python worker для выполнения pipeline;
-- Docker Compose — опционально, для запуска зависимостей.
+- Docker с Compose plugin — для запуска всего stack;
+- Node.js 22+ и npm 10 — только для локальной разработки core;
+- Python 3.12+ и Poetry — только если worker также запускается локально.
 
-Зависимости Node.js устанавливаются из корня monorepo:
-
-```bash
-npm install
-```
-
-## Быстрый локальный запуск
+## Быстрый запуск всего stack в Docker
 
 ### 1. Подготовить environment
 
@@ -54,69 +45,45 @@ npm install
 cp .env.example .env
 ```
 
-Проверьте как минимум `POSTGRES_URL`, MinIO credentials и `WORKER_SECRET`.
-Один и тот же `WORKER_SECRET` должен использоваться core и worker-ом.
+Обязательно замените `WORKER_SECRET` на случайное значение длиной не менее 32
+символов. MinIO credentials из примера подходят только для локальной разработки.
 
-### 2. Запустить зависимости
-
-Текущий `compose.yml` запускает PostgreSQL, MinIO и worker, но не Node core:
+### 2. Собрать и запустить
 
 ```bash
-docker compose up --build -d remora-db remora-minio remora-worker
+docker compose up --build -d
 ```
 
-Проверить состояние контейнеров:
+Compose запускает:
+
+| Service          | Назначение                                               | Доступ с host                      |
+| ---------------- | -------------------------------------------------------- | ---------------------------------- |
+| `remora-db`      | PostgreSQL/pgvector                                      | `127.0.0.1:5432`                   |
+| `remora-minio`   | Object storage и console                                 | `127.0.0.1:9000`, `127.0.0.1:9001` |
+| `remora-worker`  | Python worker                                            | `127.0.0.1:8000`                   |
+| `remora-db-init` | Одноразовый `drizzle-kit push`; после успеха завершается | не публикуется                     |
+| `remora-core`    | Node.js API                                              | `127.0.0.1:3000`                   |
+
+`remora-core` ждёт healthy PostgreSQL, MinIO и worker, а также успешного
+завершения `remora-db-init`. Между контейнерами используются внутренние адреса
+`remora-db`, `remora-minio`, `remora-worker` и `remora-core`.
+
+Проверить состояние:
 
 ```bash
-docker compose ps
-docker compose logs -f remora-worker
+docker compose ps -a
+docker compose logs -f remora-core
 ```
 
-Если worker работает в Docker, а core запускается на host-машине,
-`PUBLIC_BASE_URL` должен быть доступен из контейнера worker-а. Например, в
-Docker Desktop можно использовать:
+Для `remora-db-init` состояние `Exited (0)` является нормальным: schema уже
+применена, после чего запускается core.
 
-```dotenv
-HOST=0.0.0.0
-PUBLIC_BASE_URL=http://host.docker.internal:3000
-WORKER_URL=http://127.0.0.1:8000
-```
+`db-init` не использует `--force`. Если Drizzle обнаружит потенциально
+destructive изменение, проверьте `docker compose logs remora-db-init` и
+примените такое изменение вручную после backup, а не обходите предупреждение в
+автоматическом startup.
 
-На Linux укажите hostname или IP host-машины, доступный из Compose network,
-либо настройте `host-gateway`. Значение `PUBLIC_BASE_URL` также используется в
-URL загруженных файлов, поэтому выбирайте адрес, доступный всем необходимым
-клиентам.
-
-Если core и worker запущены непосредственно на одной машине, значения
-`127.0.0.1` из `.env.example` подходят без дополнительных настроек.
-
-### 3. Собрать schema и создать/обновить таблицы
-
-Drizzle config читает скомпилированную schema из `dist`, поэтому перед
-`db:push` нужен build:
-
-```bash
-npm run build
-npm run db:push --workspace=@remora/core
-```
-
-`db:push` изменяет указанную в `POSTGRES_URL` базу. Перед использованием с
-production-базой обязательно проверьте предлагаемый Drizzle diff и сделайте
-backup.
-
-Core не применяет изменения schema автоматически при старте.
-
-### 4. Запустить core
-
-Dev-режим с file watching:
-
-```bash
-npm run core:dev
-```
-
-По умолчанию API доступен на `http://127.0.0.1:3000`.
-
-Проверка:
+Проверка API:
 
 ```bash
 curl http://127.0.0.1:3000/health
@@ -128,13 +95,71 @@ curl http://127.0.0.1:3000/health
 { "status": "ok" }
 ```
 
-Swagger UI доступен по адресу:
+Swagger UI:
 
 ```text
 http://127.0.0.1:3000/docs
 ```
 
-## Другие режимы запуска
+Если внешний порт core меняется через `PORT`, одновременно задайте корректный
+`PUBLIC_BASE_URL`, например:
+
+```dotenv
+PORT=4100
+PUBLIC_BASE_URL=http://127.0.0.1:4100
+```
+
+Внутри Compose callback URL задаётся отдельно как
+`http://remora-core:3000`, поэтому worker не пытается обращаться к container
+localhost.
+
+Host-порты инфраструктуры можно переопределить переменными `POSTGRES_PORT`,
+`MINIO_PORT`, `MINIO_CONSOLE_PORT` и `WORKER_PORT`. Внутренние container ports
+при этом не меняются.
+
+## Локальная разработка core
+
+Установите Node.js зависимости из корня monorepo:
+
+```bash
+npm install
+```
+
+Запустите инфраструктуру и worker в Docker, но не запускайте container core:
+
+```bash
+docker compose up --build -d remora-db remora-minio remora-worker
+```
+
+Когда worker находится в Docker, а core — на host-машине, задайте callback URL,
+доступный из worker container. В Docker Desktop:
+
+```dotenv
+HOST=0.0.0.0
+PUBLIC_BASE_URL=http://127.0.0.1:3000
+WORKER_CALLBACK_BASE_URL=http://host.docker.internal:3000
+WORKER_URL=http://127.0.0.1:8000
+```
+
+На Linux укажите в `WORKER_CALLBACK_BASE_URL` hostname/IP host-машины,
+доступный из Compose network, либо настройте `host-gateway`.
+
+Соберите Drizzle schema и примените её к локальной базе:
+
+```bash
+npm run build
+npm run db:push --workspace=@remora/core
+```
+
+Drizzle config читает скомпилированную schema из `dist`, поэтому build перед
+`db:push` обязателен. Команда изменяет базу из `POSTGRES_URL`; перед применением
+к базе с важными данными проверьте diff и сделайте backup.
+
+Запустите core с file watching:
+
+```bash
+npm run core:dev
+```
 
 Debug с Node inspector на `127.0.0.1:9229`:
 
@@ -142,7 +167,7 @@ Debug с Node inspector на `127.0.0.1:9229`:
 npm run core:debug
 ```
 
-Production-like запуск скомпилированного приложения:
+Production-like локальный запуск:
 
 ```bash
 npm run build
@@ -162,23 +187,24 @@ Environment используется только для startup/infrastructure 
 Пользовательские runtime-настройки находятся в PostgreSQL и меняются через
 `/v1/config` без перезапуска core.
 
-| Переменная               | Обязательна           | Default                 | Назначение                                                                                               |
-| ------------------------ | --------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------- |
-| `HOST`                   | нет                   | `127.0.0.1`             | Интерфейс, на котором Fastify принимает подключения.                                                     |
-| `PORT`                   | нет                   | `3000`                  | HTTP-порт core, от `1` до `65535`.                                                                       |
-| `PUBLIC_BASE_URL`        | нет                   | `http://HOST:PORT`      | Публичный адрес core для worker callbacks и URL файлов. Завершающий `/` удаляется.                       |
-| `POSTGRES_URL`           | да                    | —                       | PostgreSQL connection string.                                                                            |
-| `WORKER_URL`             | нет                   | `http://127.0.0.1:8000` | Base URL Python worker-а. Завершающий `/` удаляется.                                                     |
-| `WORKER_REQUEST_TIMEOUT` | нет                   | `10000`                 | Timeout в миллисекундах только для `POST /tasks/execute`. Это не timeout выполнения задачи.              |
-| `WORKER_SECRET`          | для рабочего pipeline | —                       | Секрет callback-запросов, минимум 32 символа. Если не задан, callback authentication всегда отклоняется. |
-| `MAX_FILE_SIZE_BYTES`    | нет                   | `10737418240`           | Максимальный размер одного upload, по умолчанию 10 GiB.                                                  |
-| `MINIO_ENDPOINT`         | нет                   | `127.0.0.1`             | Host MinIO без URL scheme.                                                                               |
-| `MINIO_PORT`             | нет                   | `9000`                  | Порт MinIO API.                                                                                          |
-| `MINIO_USE_SSL`          | нет                   | `false`                 | Использовать TLS; допустимы строки `true` или `false`.                                                   |
-| `MINIO_ACCESS_KEY`       | да                    | —                       | MinIO access key.                                                                                        |
-| `MINIO_SECRET_KEY`       | да                    | —                       | MinIO secret key.                                                                                        |
-| `MINIO_BUCKET`           | нет                   | `remora`                | Bucket для файлов Remora.                                                                                |
-| `MINIO_REGION`           | нет                   | `us-east-1`             | Регион bucket-а.                                                                                         |
+| Переменная                 | Обязательна           | Default                 | Назначение                                                                                               |
+| -------------------------- | --------------------- | ----------------------- | -------------------------------------------------------------------------------------------------------- |
+| `HOST`                     | нет                   | `127.0.0.1`             | Интерфейс, на котором Fastify принимает подключения.                                                     |
+| `PORT`                     | нет                   | `3000`                  | HTTP-порт core, от `1` до `65535`.                                                                       |
+| `PUBLIC_BASE_URL`          | нет                   | `http://HOST:PORT`      | Внешний адрес core, используемый в URL файлов. Завершающий `/` удаляется.                                |
+| `WORKER_CALLBACK_BASE_URL` | нет                   | `PUBLIC_BASE_URL`       | Адрес core, по которому worker отправляет callbacks. Завершающий `/` удаляется.                          |
+| `POSTGRES_URL`             | да                    | —                       | PostgreSQL connection string.                                                                            |
+| `WORKER_URL`               | нет                   | `http://127.0.0.1:8000` | Base URL Python worker-а. Завершающий `/` удаляется.                                                     |
+| `WORKER_REQUEST_TIMEOUT`   | нет                   | `10000`                 | Timeout в миллисекундах только для `POST /tasks/execute`. Это не timeout выполнения задачи.              |
+| `WORKER_SECRET`            | для рабочего pipeline | —                       | Секрет callback-запросов, минимум 32 символа. Если не задан, callback authentication всегда отклоняется. |
+| `MAX_FILE_SIZE_BYTES`      | нет                   | `10737418240`           | Максимальный размер одного upload, по умолчанию 10 GiB.                                                  |
+| `MINIO_ENDPOINT`           | нет                   | `127.0.0.1`             | Host MinIO без URL scheme.                                                                               |
+| `MINIO_PORT`               | нет                   | `9000`                  | Порт MinIO API.                                                                                          |
+| `MINIO_USE_SSL`            | нет                   | `false`                 | Использовать TLS; допустимы строки `true` или `false`.                                                   |
+| `MINIO_ACCESS_KEY`         | да                    | —                       | MinIO access key.                                                                                        |
+| `MINIO_SECRET_KEY`         | да                    | —                       | MinIO secret key.                                                                                        |
+| `MINIO_BUCKET`             | нет                   | `remora`                | Bucket для файлов Remora.                                                                                |
+| `MINIO_REGION`             | нет                   | `us-east-1`             | Регион bucket-а.                                                                                         |
 
 Переменные `MAX_CONCURRENT_TASKS`, `HTTP_TIMEOUT`,
 `FINAL_EVENT_RETRY_COUNT` и `FINAL_EVENT_RETRY_BASE_DELAY` из корневого
@@ -276,7 +302,7 @@ task-specific `config`. Успешный worker должен ответить HT
 Worker отправляет события в:
 
 ```text
-POST {PUBLIC_BASE_URL}/v1/tasks/events
+POST {WORKER_CALLBACK_BASE_URL}/v1/tasks/events
 x-worker-secret: <WORKER_SECRET>
 ```
 
@@ -382,6 +408,11 @@ TLS завершается вне core — например, на reverse proxy.
 
 Schema находится в [`src/database/schema.ts`](src/database/schema.ts).
 
+В полном Compose stack schema автоматически синхронизируется одноразовым
+service `remora-db-init` до запуска core. При локальном запуске используйте
+`npm run build` и `npm run db:push --workspace=@remora/core`. Сам процесс core
+не изменяет schema при старте.
+
 Основные таблицы:
 
 - `folders` — иерархия папок;
@@ -413,6 +444,11 @@ src/
 ├── routes.ts         # корневая регистрация routes
 └── server.ts         # executable entrypoint
 ```
+
+Container image описан в [`Dockerfile`](Dockerfile). Build stage устанавливает
+dev dependencies и компилирует TypeScript; runtime stage содержит только
+production dependencies и `dist`. Корневой `.dockerignore` исключает локальные
+dependencies, build artifacts, `.env` и Python virtual environments.
 
 ### Слои
 
@@ -459,7 +495,7 @@ npm run format
 npm run clean --workspace=@remora/core
 ```
 
-## Остановка локальной инфраструктуры
+## Остановка stack
 
 ```bash
 docker compose down
