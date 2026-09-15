@@ -1,8 +1,8 @@
-from typing import Annotated, Literal, TypeAlias
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, JsonValue
 
-JsonObject: TypeAlias = dict[str, JsonValue]
+type JsonObject = dict[str, JsonValue]
 
 
 class ApiModel(BaseModel):
@@ -46,6 +46,7 @@ class WorkerEventProgress(ApiModel):
         default=None,
         alias="stepProgress",
     )
+    step_determinate: bool | None = Field(default=None, alias="stepDeterminate")
 
 
 class WorkerEventCompleted(ApiModel):
@@ -60,7 +61,7 @@ class WorkerEventFailed(ApiModel):
     error: JsonObject
 
 
-WorkerEvent: TypeAlias = (
+type WorkerEvent = (
     WorkerEventStarted
     | WorkerEventProgress
     | WorkerEventCompleted

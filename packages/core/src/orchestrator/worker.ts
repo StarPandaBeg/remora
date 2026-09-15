@@ -14,6 +14,7 @@ interface WorkerEventProgress {
     step?: number
     stepName?: string
     stepProgress?: number
+    stepDeterminate?: boolean
 }
 
 interface WorkerEventCompleted {

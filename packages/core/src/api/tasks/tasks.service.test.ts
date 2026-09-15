@@ -187,6 +187,7 @@ void describe('worker callback', () => {
                 step: 1,
                 stepName: 'Download',
                 stepProgress: 50,
+                stepDeterminate: true
             },
             { type: 'task.completed', taskId: 1, output: { text: 'done' } },
             { type: 'task.failed', taskId: 1, error: { message: 'failed' } },

@@ -12,6 +12,7 @@ import { z } from 'zod/v4'
 import { processingStatus } from '../../database/schema.ts'
 import type { WorkerEvent } from '../../orchestrator/worker.ts'
 import { HttpError } from '../../util/error.ts'
+import { globalEventBus } from '../../util/event.ts'
 import { taskDtoSchema, toTaskDto } from './tasks.dto.ts'
 
 export const workerSecretHeader = 'x-worker-secret'
@@ -45,6 +46,7 @@ export const workerEventSchema: z.ZodType<WorkerEvent> = z.discriminatedUnion(
             step: z.number().int().positive().optional(),
             stepName: z.string().min(1).optional(),
             stepProgress: z.number().min(0).max(100).optional(),
+            stepDeterminate: z.boolean().optional()
         }),
         z.strictObject({
             type: z.literal('task.completed'),
@@ -134,6 +136,28 @@ export async function startTaskHandler(
     return toTaskDto(task)
 }
 
+export async function listenTaskEventsHandler(
+    request: FastifyRequest,
+    reply: FastifyReply,
+) {
+    reply.sse.keepAlive()
+    await reply.sse.send({
+        event: 'connected',
+        data: { connected: true },
+    })
+
+    const handler = (event: WorkerEvent) => {
+        if (!reply.sse.isConnected) return
+        void reply.sse.send({ data: event }).catch((err) => {
+            request.log.error(err)
+        })
+    }
+    globalEventBus.on('worker:event', handler)
+    reply.sse.onClose(() => {
+        globalEventBus.off('worker:event', handler)
+    })
+}
+
 const tasksApi: FastifyPluginCallback = (fastify, _options, done) => {
     const api = fastify.withTypeProvider<ZodTypeProvider>()
 
@@ -194,6 +218,18 @@ const tasksApi: FastifyPluginCallback = (fastify, _options, done) => {
             },
         },
         startTaskHandler,
+    )
+
+    api.get(
+        '/tasks/sse',
+        {
+            sse: 'only',
+            schema: {
+                summary: 'Listen for worker events',
+                tags: ['tasks'],
+            },
+        },
+        listenTaskEventsHandler,
     )
 
     done()

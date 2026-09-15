@@ -1,4 +1,5 @@
 import multipart from '@fastify/multipart'
+import { fastifySSE } from '@fastify/sse'
 import {
     serializerCompiler,
     validatorCompiler,
@@ -26,6 +27,7 @@ const app: FastifyPluginAsync<AppOptions> = async (fastify, appOptions) => {
     fastify.setValidatorCompiler(validatorCompiler)
     fastify.setSerializerCompiler(serializerCompiler)
 
+    await fastify.register(fastifySSE)
     await fastify.register(multipart, {
         limits: {
             fields: 10,

@@ -1,12 +1,33 @@
+from __future__ import annotations
+
 from collections.abc import Awaitable, Callable
 
 from worker.models import ProgressValue, WorkerEventProgress
 
 SendProgressEvent = Callable[[WorkerEventProgress], Awaitable[None]]
 
+class StepProgressReporter:
+    """Async context manager for reporting progress within a single task step."""
+
+    def __init__(self, progress: ProgressReporter, step_name: str | None = None, is_determinate: bool | None = True) -> None:
+        self._progress = progress
+        self._step_name = step_name
+        self._step_determinate = is_determinate
+
+    async def __aenter__(self):
+        await self._progress.start_step(self._step_name, self._step_determinate)
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+        if exc_type is None:
+            await self._progress.complete_step()
+
+    async def __call__(self, progress: ProgressValue) -> None:
+        await self._progress.update_step(progress)
+
 
 class ProgressReporter:
-    """Reports either plain progress or progress split into numbered steps."""
+    """Reports overall task progress and progress within individual steps."""
 
     def __init__(self, task_id: int, send_event: SendProgressEvent) -> None:
         self._task_id = task_id
@@ -16,6 +37,7 @@ class ProgressReporter:
         self._step: int | None = None
         self._step_name: str | None = None
         self._step_progress: float | None = None
+        self._step_determinate: bool | None = None
 
     async def __call__(self, progress: ProgressValue) -> None:
         await self._emit(progress)
@@ -31,7 +53,7 @@ class ProgressReporter:
         self._step_progress = None
         await self._emit(self._progress)
 
-    async def start_step(self, step_name: str | None = None) -> None:
+    async def start_step(self, step_name: str | None = None, is_determinate: bool | None = True) -> None:
         if self._total_steps is None:
             raise RuntimeError("set_total_steps() must be called before start_step()")
         if step_name is not None and not step_name:
@@ -44,6 +66,7 @@ class ProgressReporter:
         self._step = next_step
         self._step_name = step_name
         self._step_progress = 0.0
+        self._step_determinate = is_determinate
         await self._emit(self._step_base_progress())
 
     async def update_step(self, step_progress: ProgressValue) -> None:
@@ -62,6 +85,9 @@ class ProgressReporter:
     async def complete_step(self) -> None:
         await self.update_step(100)
 
+    def step(self, step_name: str | None = None, is_determinate: bool | None = True) -> StepProgressReporter:
+        return StepProgressReporter(self, step_name, is_determinate)
+
     def _step_base_progress(self) -> float:
         assert self._step is not None
         assert self._total_steps is not None
@@ -73,6 +99,7 @@ class ProgressReporter:
         *,
         step_progress: float | None = None,
     ) -> WorkerEventProgress:
+        stepProgress = self._step_progress if step_progress is None else step_progress
         return WorkerEventProgress(
             taskId=self._task_id,
             progress=progress,
@@ -80,11 +107,13 @@ class ProgressReporter:
             step=self._step,
             stepName=self._step_name,
             stepProgress=(
-                self._step_progress if step_progress is None else step_progress
+                stepProgress if self._step_determinate else None
             ),
+            stepDeterminate=self._step_determinate
         )
 
     async def _emit(self, progress: ProgressValue) -> None:
         event = self._event(progress)
         self._progress = event.progress
         await self._send_event(event)
+
