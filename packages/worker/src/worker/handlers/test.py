@@ -1,13 +1,12 @@
-from collections.abc import Awaitable, Callable
-
-from worker.models import JsonObject, ProgressValue
+from worker.models import JsonObject
+from worker.progress import ProgressReporter
 from worker.storage import MinioStorage
 
 
 async def handle_test(
     input: JsonObject,
     config: JsonObject,
-    progress: Callable[[ProgressValue], Awaitable[None]],
+    progress: ProgressReporter,
     storage: MinioStorage,
 ) -> JsonObject:
     del config, storage
@@ -18,4 +17,3 @@ async def handle_test(
 
     await progress(75)
     return {"message": "Test task completed"}
-

@@ -41,6 +41,10 @@ export const workerEventSchema: z.ZodType<WorkerEvent> = z.discriminatedUnion(
             type: z.literal('task.progress'),
             taskId: taskIdSchema,
             progress: z.number().finite(),
+            totalSteps: z.number().int().positive().optional(),
+            step: z.number().int().positive().optional(),
+            stepName: z.string().min(1).optional(),
+            stepProgress: z.number().min(0).max(100).optional(),
         }),
         z.strictObject({
             type: z.literal('task.completed'),

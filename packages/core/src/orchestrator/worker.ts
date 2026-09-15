@@ -10,6 +10,10 @@ interface WorkerEventProgress {
     type: 'task.progress'
     taskId: number
     progress: number
+    totalSteps?: number
+    step?: number
+    stepName?: string
+    stepProgress?: number
 }
 
 interface WorkerEventCompleted {

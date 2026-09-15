@@ -39,6 +39,13 @@ class WorkerEventProgress(ApiModel):
     type: Literal["task.progress"] = "task.progress"
     task_id: int = Field(alias="taskId", gt=0)
     progress: ProgressValue
+    total_steps: int | None = Field(default=None, alias="totalSteps", gt=0)
+    step: int | None = Field(default=None, gt=0)
+    step_name: str | None = Field(default=None, alias="stepName", min_length=1)
+    step_progress: ProgressValue | None = Field(
+        default=None,
+        alias="stepProgress",
+    )
 
 
 class WorkerEventCompleted(ApiModel):

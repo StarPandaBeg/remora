@@ -1,9 +1,9 @@
-from collections.abc import Awaitable, Callable
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from worker.models import JsonObject, ProgressValue, StorageReference
+from worker.models import JsonObject, StorageReference
+from worker.progress import ProgressReporter
 from worker.storage import MinioStorage, temporary_directory
 
 
@@ -25,7 +25,7 @@ class StorageTestInput(BaseModel):
 async def handle_storage_test(
     input: JsonObject,
     config: JsonObject,
-    progress: Callable[[ProgressValue], Awaitable[None]],
+    progress: ProgressReporter,
     storage: MinioStorage,
 ) -> JsonObject:
     del config

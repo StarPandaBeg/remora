@@ -216,6 +216,46 @@ MinIO SDK синхронный, поэтому storage helper выполняет
 операции через `asyncio.to_thread`. Handlers могут обрабатывать большие файлы во
 временном каталоге, не загружая их целиком в RAM.
 
+## Отправка прогресса
+
+Для задачи без внутренних шагов reporter остаётся обычной async-функцией:
+
+```python
+await progress(25)
+await progress(75)
+```
+
+Такие вызовы отправляют только общий `progress`.
+
+Если задача состоит из шагов, сначала задайте их количество, а затем запускайте
+шаги по очереди:
+
+```python
+await progress.set_total_steps(3)
+
+await progress.start_step("Download source")
+await storage.download(data.source, source_file)
+await progress.complete_step()
+
+await progress.start_step("Process media")
+await progress.update_step(25)
+await process_media(source_file, result_file)
+await progress.complete_step()
+
+await progress.start_step("Upload result")
+await storage.upload(result_file, result_object_key)
+await progress.complete_step()
+```
+
+`set_total_steps()` сразу отправляет событие с `progress=0` и запоминает
+`totalSteps`. `start_step()` автоматически переходит к следующему шагу;
+нумерация начинается с 1. `update_step()` принимает процент текущего шага, а
+общий `progress` вычисляется автоматически. `complete_step()` эквивалентен
+`update_step(100)`.
+
+После задания шагов каждое событие содержит `totalSteps`, а во время активного
+шага также содержит `step`, `stepName` и `stepProgress`.
+
 ## Тестовые handlers
 
 ### `test`

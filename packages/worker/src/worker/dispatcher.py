@@ -2,19 +2,17 @@ import asyncio
 import logging
 
 import httpx
-from pydantic import ValidationError
 
 from worker.callbacks import CallbackSender
 from worker.handlers import HANDLERS, Handler
 from worker.models import (
     ExecuteTaskRequest,
-    JsonObject,
-    ProgressValue,
     WorkerEventCompleted,
     WorkerEventFailed,
     WorkerEventProgress,
     WorkerEventStarted,
 )
+from worker.progress import ProgressReporter
 from worker.storage import MinioStorage
 
 logger = logging.getLogger(__name__)
@@ -65,18 +63,10 @@ async def _run_handler(
         WorkerEventStarted(taskId=command.task_id),
     )
 
-    async def progress(value: ProgressValue) -> None:
-        try:
-            event = WorkerEventProgress(taskId=command.task_id, progress=value)
-        except ValidationError:
-            logger.error(
-                "Handler produced invalid progress for taskId=%d",
-                command.task_id,
-                exc_info=True,
-            )
-            raise
-
+    async def send_progress(event: WorkerEventProgress) -> None:
         await _send_best_effort(sender, callback_url, event)
+
+    progress = ProgressReporter(command.task_id, send_progress)
 
     try:
         output = await handler(command.input, command.config, progress, storage)

@@ -192,8 +192,11 @@ void describe('orchestrator worker dispatch', () => {
         await harness.orchestrator.runNextStep(10)
 
         const expectedInput = {
-            bucket: 'remora',
-            objectKey: 'entries/video.mp4',
+            source: {
+                bucket: 'remora',
+                objectKey: 'entries/video.mp4',
+            },
+            mimetype: 'video/mp4',
             recordId: 'record-1',
         }
         assert.deepEqual(harness.getEnqueuedInput(), expectedInput)

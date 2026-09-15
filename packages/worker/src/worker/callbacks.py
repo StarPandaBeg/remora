@@ -22,7 +22,7 @@ class CallbackSender:
 
     async def send_event(self, callback_url: str, event: WorkerEvent) -> None:
         attempts = self._retry_count if event.type in FINAL_EVENT_TYPES else 1
-        payload = event.model_dump(mode="json", by_alias=True)
+        payload = event.model_dump(mode="json", by_alias=True, exclude_none=True)
 
         for attempt in range(1, attempts + 1):
             try:

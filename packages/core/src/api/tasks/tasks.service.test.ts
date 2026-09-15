@@ -179,6 +179,15 @@ void describe('worker callback', () => {
         const events: WorkerEvent[] = [
             { type: 'task.started', taskId: 1 },
             { type: 'task.progress', taskId: 1, progress: 50 },
+            {
+                type: 'task.progress',
+                taskId: 1,
+                progress: 25,
+                totalSteps: 2,
+                step: 1,
+                stepName: 'Download',
+                stepProgress: 50,
+            },
             { type: 'task.completed', taskId: 1, output: { text: 'done' } },
             { type: 'task.failed', taskId: 1, error: { message: 'failed' } },
         ]

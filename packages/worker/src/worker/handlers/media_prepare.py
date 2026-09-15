@@ -1,13 +1,13 @@
 import asyncio
 import json
 import mimetypes
-from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from worker.models import JsonObject, ProgressValue, StorageReference
+from worker.models import JsonObject, StorageReference
+from worker.progress import ProgressReporter
 from worker.storage import MinioStorage, temporary_directory
 
 
@@ -37,7 +37,7 @@ class MediaPrepareInput(BaseModel):
 async def handle_media_prepare(
     input: JsonObject,
     config: JsonObject,
-    progress: Callable[[ProgressValue], Awaitable[None]],
+    progress: ProgressReporter,
     storage: MinioStorage,
 ) -> JsonObject:
     data = MediaPrepareInput.model_validate(input)
