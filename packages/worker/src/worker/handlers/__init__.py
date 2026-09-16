@@ -4,10 +4,9 @@ from worker.handlers.audio_chunking import handle_audio_chunking
 from worker.handlers.media_prepare import handle_media_prepare
 from worker.models import JsonObject
 from worker.progress import ProgressReporter
-from worker.storage import MinioStorage
 
 type Handler = Callable[
-    [JsonObject, JsonObject, ProgressReporter, MinioStorage],
+    [JsonObject, JsonObject, ProgressReporter],
     Awaitable[JsonObject],
 ]
 

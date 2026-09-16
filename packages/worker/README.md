@@ -69,6 +69,35 @@ FINAL_EVENT_RETRY_COUNT=3
 FINAL_EVENT_RETRY_BASE_DELAY=0.25
 ```
 
+### Настройки Whisper
+
+Пользовательская конфигурация задачи содержит provider, модель, язык,
+параметры результата транскрибации, а для удалённых provider-ов также URL и
+API-ключ. Устройство, производительность и локальные пути задаются на worker
+через `.env`:
+
+```dotenv
+WHISPER_TIMEOUT_SECONDS=300
+
+# WHISPER_LOCAL_DEVICE=cpu
+WHISPER_LOCAL_DEVICE_INDEX=0
+WHISPER_LOCAL_DOWNLOAD_ROOT=.cache/faster-whisper
+WHISPER_LOCAL_COMPUTE_TYPE=auto
+WHISPER_LOCAL_THREADS=4
+WHISPER_LOCAL_FILES_ONLY=false
+# WHISPER_LOCAL_HF_TOKEN=replace-with-hugging-face-token
+
+WHISPER_OLLAMA_PULL_MODEL=false
+
+# WHISPER_OPENROUTER_SITE_URL=https://example.com
+WHISPER_OPENROUTER_APP_NAME=Remora
+```
+
+Если `WHISPER_LOCAL_DEVICE` не задан, worker автоматически выбирает CUDA при
+её наличии, иначе CPU. При `WHISPER_LOCAL_COMPUTE_TYPE=auto` используются
+`float16` для CUDA и `int8` для CPU. Пустые необязательные секреты и значения
+следует не добавлять в `.env`.
+
 ## Запуск в dev-режиме
 
 Из корня репозитория:

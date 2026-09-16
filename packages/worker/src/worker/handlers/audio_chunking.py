@@ -9,6 +9,7 @@ from torch import Tensor
 from worker.handlers.config import DynamicConfig
 from worker.models import JsonObject, StorageReference
 from worker.progress import ProgressReporter
+from worker.services.registry import get_storage
 from worker.services.util import build_object_key
 from worker.services.vad import (
     ChunkingConfig,
@@ -16,7 +17,7 @@ from worker.services.vad import (
     build_chunks,
     get_wav_segments,
 )
-from worker.storage import MinioStorage, temporary_directory
+from worker.storage import temporary_directory
 
 
 class AudioChunkingInput(BaseModel):
@@ -30,8 +31,8 @@ async def handle_audio_chunking(
     input: JsonObject,
     config: JsonObject,
     progress: ProgressReporter,
-    storage: MinioStorage,
 ) -> JsonObject:
+    storage = get_storage()
     data = AudioChunkingInput.model_validate(input)
     cfg = DynamicConfig.model_validate(config)
     vad_config = ChunkingConfig(**cfg.chunking.model_dump())

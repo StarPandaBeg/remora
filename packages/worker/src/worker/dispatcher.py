@@ -13,7 +13,6 @@ from worker.models import (
     WorkerEventStarted,
 )
 from worker.progress import ProgressReporter
-from worker.storage import MinioStorage
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +53,6 @@ async def _run_handler(
     command: ExecuteTaskRequest,
     handler: Handler,
     sender: CallbackSender,
-    storage: MinioStorage,
 ) -> None:
     callback_url = str(command.callback_url)
     await _send_best_effort(
@@ -69,7 +67,7 @@ async def _run_handler(
     progress = ProgressReporter(command.task_id, send_progress)
 
     try:
-        output = await handler(command.input, command.config, progress, storage)
+        output = await handler(command.input, command.config, progress)
         if not isinstance(output, dict):
             raise TypeError("Handler output must be an object")
         completed_event = WorkerEventCompleted(
@@ -113,7 +111,6 @@ async def execute_task(
     command: ExecuteTaskRequest,
     sender: CallbackSender,
     semaphore: asyncio.Semaphore,
-    storage: MinioStorage,
 ) -> None:
     handler = HANDLERS.get(command.type)
     callback_url = str(command.callback_url)
@@ -145,4 +142,4 @@ async def execute_task(
             command.type,
             command.task_id,
         )
-        await _run_handler(command, handler, sender, storage)
+        await _run_handler(command, handler, sender)

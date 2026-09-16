@@ -6,8 +6,9 @@ from pydantic import BaseModel, ConfigDict, Field
 from worker.models import JsonObject, StorageReference
 from worker.progress import ProgressReporter
 from worker.services.ffmpeg import MediaInfo, ProgressCallback, probe_media, run_ffmpeg
+from worker.services.registry import get_storage
 from worker.services.util import build_object_key
-from worker.storage import MinioStorage, temporary_directory
+from worker.storage import temporary_directory
 
 
 class MediaPrepareInput(BaseModel):
@@ -22,8 +23,8 @@ async def handle_media_prepare(
     input: JsonObject,
     config: JsonObject,
     progress: ProgressReporter,
-    storage: MinioStorage,
 ) -> JsonObject:
+    storage = get_storage()
     data = MediaPrepareInput.model_validate(input)
     extension = mimetypes.guess_extension(data.mimetype) or ".mp4"
 

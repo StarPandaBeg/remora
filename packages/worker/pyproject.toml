@@ -17,6 +17,7 @@ dependencies = [
     "silero-vad (>=6.2.1,<7.0.0)",
     "numpy (>=2.5.3,<3.0.0)",
     "onnxruntime (>=1.30.0,<2.0.0)",
+    "faster-whisper (>=1.2.1,<2.0.0)",
 ]
 
 [tool.poetry]

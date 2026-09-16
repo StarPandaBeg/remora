@@ -10,6 +10,8 @@ from worker.callbacks import CallbackSender
 from worker.config import Settings, load_settings
 from worker.dispatcher import execute_task
 from worker.models import ExecuteTaskRequest, ExecuteTaskResponse
+from worker.services.registry import initialize_services, shutdown_services
+from worker.services.whisper import WhisperService
 from worker.storage import MinioStorage
 
 logger = logging.getLogger(__name__)
@@ -19,10 +21,9 @@ async def _execute_safely(
     command: ExecuteTaskRequest,
     sender: CallbackSender,
     semaphore: asyncio.Semaphore,
-    storage: MinioStorage,
 ) -> None:
     try:
-        await execute_task(command, sender, semaphore, storage)
+        await execute_task(command, sender, semaphore)
     except Exception:
         logger.exception(
             "Unexpected background task error pipeline=%s type=%s taskId=%d",
@@ -36,6 +37,7 @@ def create_app(
     settings: Settings | None = None,
     transport: httpx.AsyncBaseTransport | None = None,
     storage: MinioStorage | None = None,
+    whisper: WhisperService | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -45,7 +47,10 @@ def create_app(
             transport=transport,
         )
         app.state.callback_sender = CallbackSender(client, app_settings)
-        app.state.storage = storage or MinioStorage(app_settings)
+        app.state.services = initialize_services(
+            storage or MinioStorage(app_settings),
+            whisper or WhisperService(client),
+        )
         app.state.semaphore = asyncio.Semaphore(
             app_settings.max_concurrent_tasks
         )
@@ -57,6 +62,7 @@ def create_app(
             tasks: set[asyncio.Task[None]] = app.state.tasks
             if tasks:
                 await asyncio.gather(*tasks, return_exceptions=True)
+            shutdown_services(app.state.services)
             await client.aclose()
 
     application = FastAPI(title="Remora Worker", lifespan=lifespan)
@@ -85,7 +91,6 @@ def create_app(
                 command,
                 request.app.state.callback_sender,
                 request.app.state.semaphore,
-                request.app.state.storage,
             ),
             name=f"task-{command.task_id}",
         )

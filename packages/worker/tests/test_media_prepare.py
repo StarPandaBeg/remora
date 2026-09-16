@@ -1,6 +1,5 @@
 import asyncio
 from pathlib import Path
-from typing import cast
 
 import pytest
 
@@ -12,7 +11,6 @@ from worker.models import (
     WorkerEventProgress,
 )
 from worker.progress import ProgressReporter
-from worker.storage import MinioStorage
 
 
 class FakeStorage:
@@ -56,12 +54,18 @@ def test_media_prepare_output_is_json_compatible(
             audio_channels=2,
         )
 
-    async def process(_source: Path, destination: Path, _media: MediaInfo) -> None:
+    async def process(
+        _source: Path,
+        destination: Path,
+        _media: MediaInfo,
+        **_options: object,
+    ) -> None:
         destination.write_bytes(b"result")
 
     monkeypatch.setattr(media_prepare, "probe_media", probe)
     monkeypatch.setattr(media_prepare, "normalize_video", process)
     monkeypatch.setattr(media_prepare, "extract_audio", process)
+    monkeypatch.setattr(media_prepare, "get_storage", lambda: storage)
 
     async def send_progress(event: WorkerEventProgress) -> None:
         progress_events.append(event)
@@ -82,7 +86,6 @@ def test_media_prepare_output_is_json_compatible(
             },
             {},
             progress,
-            cast(MinioStorage, storage),
         )
 
     output = asyncio.run(run_handler())

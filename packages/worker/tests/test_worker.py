@@ -20,6 +20,8 @@ from worker.models import (
     WorkerEventCompleted,
     WorkerEventProgress,
 )
+from worker.services.registry import get_storage, get_whisper
+from worker.services.whisper import WhisperService
 from worker.storage import MinioStorage
 
 SECRET = "test-worker-secret"
@@ -349,6 +351,24 @@ def test_health() -> None:
 
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_application_services_are_shared_for_the_whole_lifespan() -> None:
+    storage = make_storage(FakeMinio())
+    whisper = WhisperService(providers=[])
+    app = create_app(
+        settings=make_settings(),
+        transport=httpx.MockTransport(lambda _request: httpx.Response(204)),
+        storage=storage,
+        whisper=whisper,
+    )
+
+    with TestClient(app):
+        assert get_storage() is storage
+        assert get_whisper() is whisper
+
+    with pytest.raises(RuntimeError, match="not initialized"):
+        get_storage()
 
 
 def test_execute_returns_202_and_successful_handler_sends_lifecycle(
