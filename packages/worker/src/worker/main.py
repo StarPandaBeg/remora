@@ -10,6 +10,7 @@ from worker.callbacks import CallbackSender
 from worker.config import Settings, load_settings
 from worker.dispatcher import execute_task
 from worker.models import ExecuteTaskRequest, ExecuteTaskResponse
+from worker.services.diarization import DiarizationService
 from worker.services.registry import initialize_services, shutdown_services
 from worker.services.whisper import WhisperService
 from worker.storage import MinioStorage
@@ -38,6 +39,7 @@ def create_app(
     transport: httpx.AsyncBaseTransport | None = None,
     storage: MinioStorage | None = None,
     whisper: WhisperService | None = None,
+    diarization: DiarizationService | None = None,
 ) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
@@ -50,6 +52,7 @@ def create_app(
         app.state.services = initialize_services(
             storage or MinioStorage(app_settings),
             whisper or WhisperService(client),
+            diarization or DiarizationService(),
         )
         app.state.semaphore = asyncio.Semaphore(
             app_settings.max_concurrent_tasks

@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from worker.services.diarization import DiarizationService
 from worker.services.whisper import WhisperService
 from worker.storage import MinioStorage
 
@@ -8,6 +9,7 @@ from worker.storage import MinioStorage
 class ApplicationServices:
     storage: MinioStorage
     whisper: WhisperService
+    diarization: DiarizationService
 
 
 _services: ApplicationServices | None = None
@@ -16,12 +18,17 @@ _services: ApplicationServices | None = None
 def initialize_services(
     storage: MinioStorage,
     whisper: WhisperService,
+    diarization: DiarizationService,
 ) -> ApplicationServices:
     global _services
 
     if _services is not None:
         raise RuntimeError("Application services are already initialized")
-    _services = ApplicationServices(storage=storage, whisper=whisper)
+    _services = ApplicationServices(
+        storage=storage,
+        whisper=whisper,
+        diarization=diarization,
+    )
     return _services
 
 
@@ -37,6 +44,10 @@ def get_storage() -> MinioStorage:
 
 def get_whisper() -> WhisperService:
     return get_services().whisper
+
+
+def get_diarization() -> DiarizationService:
+    return get_services().diarization
 
 
 def shutdown_services(services: ApplicationServices) -> None:

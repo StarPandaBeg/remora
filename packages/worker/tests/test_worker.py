@@ -20,7 +20,8 @@ from worker.models import (
     WorkerEventCompleted,
     WorkerEventProgress,
 )
-from worker.services.registry import get_storage, get_whisper
+from worker.services.diarization import DiarizationService
+from worker.services.registry import get_diarization, get_storage, get_whisper
 from worker.services.whisper import WhisperService
 from worker.storage import MinioStorage
 
@@ -356,16 +357,19 @@ def test_health() -> None:
 def test_application_services_are_shared_for_the_whole_lifespan() -> None:
     storage = make_storage(FakeMinio())
     whisper = WhisperService(providers=[])
+    diarization = DiarizationService()
     app = create_app(
         settings=make_settings(),
         transport=httpx.MockTransport(lambda _request: httpx.Response(204)),
         storage=storage,
         whisper=whisper,
+        diarization=diarization,
     )
 
     with TestClient(app):
         assert get_storage() is storage
         assert get_whisper() is whisper
+        assert get_diarization() is diarization
 
     with pytest.raises(RuntimeError, match="not initialized"):
         get_storage()

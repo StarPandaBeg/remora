@@ -31,8 +31,10 @@ class OllamaWhisperProvider(HttpWhisperProvider):
         config: WhisperConfig,
         progress: ProgressCallback | None = None,
     ) -> TranscriptionResult:
-        base_url = (config.base_url or "http://localhost:11434").rstrip("/")
-        headers = self._authorization_headers(config.api_key)
+        base_url = (
+            config.ollama_base_url or "http://localhost:11434"
+        ).rstrip("/")
+        headers = self._authorization_headers(config.ollama_api_key)
 
         if self._settings.ollama_pull_model:
             response = await self._post(

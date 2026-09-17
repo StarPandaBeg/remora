@@ -1,10 +1,7 @@
 import asyncio
 import json
-from pathlib import Path
 
-import torchaudio
-from pydantic import BaseModel, ConfigDict, Field
-from torch import Tensor
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from worker.handlers.config import DynamicConfig
 from worker.models import JsonObject, StorageReference
@@ -25,6 +22,29 @@ class AudioChunkingInput(BaseModel):
 
     audio_source: StorageReference = Field(alias="audioSource")
     record_id: str = Field(alias="recordId", min_length=1)
+
+
+class AudioManifestChunk(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start: float = Field(ge=0)
+    end: float = Field(gt=0)
+    silence_after: float = Field(ge=0)
+
+    @model_validator(mode="after")
+    def end_must_be_after_start(self) -> "AudioManifestChunk":
+        if self.end <= self.start:
+            raise ValueError("Chunk end must be greater than start")
+        return self
+
+
+class AudioManifest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start_offset: float = Field(ge=0)
+    end_offset: float = Field(ge=0)
+    vad_object_key: str = Field(min_length=1)
+    chunks: list[AudioManifestChunk]
 
 
 async def handle_audio_chunking(
@@ -55,18 +75,12 @@ async def handle_audio_chunking(
 
         async with progress.step("audio_chunking.chunks", False):
             chunks = build_chunks(segments, duration, vad_config)
-            wav_paths = save_wav_chunks(wav, chunks, 16000, directory)
-
-        wav_object_keys = [
-            build_object_key(data.record_id, f"audio/chunk_{i}.wav")
-            for i in range(len(chunks))
-        ]
 
         async with progress.step("audio_chunking.save", False):
-            manifest = build_manifest(chunks, duration, vad_object_key, wav_object_keys)
+            manifest = build_manifest(chunks, duration, vad_object_key)
             await asyncio.to_thread(
                 manifest_path.write_text,
-                json.dumps(manifest),
+                manifest.model_dump_json(),
                 encoding="utf-8",
             )
             await asyncio.to_thread(
@@ -74,8 +88,6 @@ async def handle_audio_chunking(
             )
 
         async with progress.step("audio_chunking.upload", False):
-            for i, path in enumerate(wav_paths):
-                await storage.upload(path, wav_object_keys[i])
             await storage.upload(vad_path, vad_object_key)
             await storage.upload(manifest_path, manifest_object_key)
 
@@ -86,48 +98,19 @@ def build_manifest(
     chunks: list[SpeechSegment],
     duration: float,
     vad_obj_key: str,
-    chunk_keys: list[str],
-):
+) -> AudioManifest:
     leading_removed = chunks[0]["start"] if chunks else duration
     trailing_removed = duration - chunks[-1]["end"] if chunks else 0
-    return {
-        "start_offset": leading_removed,
-        "end_offset": trailing_removed,
-        "vad_object_key": vad_obj_key,
-        "chunks": [
-            {
-                "start": c["start"],
-                "end": c["end"],
-                "silence_after": c["removed_silence_after"],
-                "chunk_object_key": chunk_keys[i],
-            }
-            for i, c in enumerate(chunks)
+    return AudioManifest(
+        start_offset=leading_removed,
+        end_offset=trailing_removed,
+        vad_object_key=vad_obj_key,
+        chunks=[
+            AudioManifestChunk(
+                start=round(chunk["start"], 3),
+                end=round(chunk["end"], 3),
+                silence_after=round(chunk["removed_silence_after"], 3),
+            )
+            for chunk in chunks
         ],
-    }
-
-
-def save_wav_chunks(
-    wav: Tensor,
-    chunks: list[SpeechSegment],
-    sampling_rate: int,
-    output_dir: Path,
-) -> list[Path]:
-    output_dir.mkdir(parents=True, exist_ok=True)
-
-    paths: list[Path] = []
-
-    for index, chunk in enumerate(chunks):
-        start = round(chunk["start"] * sampling_rate)
-        end = round(chunk["end"] * sampling_rate)
-        chunk_wav = wav[start:end]
-        path = output_dir / f"chunk_{index:03d}.wav"
-        torchaudio.save(
-            path,
-            chunk_wav.unsqueeze(0),
-            sampling_rate,
-            encoding="PCM_S",
-            bits_per_sample=16,
-        )
-
-        paths.append(path)
-    return paths
+    )

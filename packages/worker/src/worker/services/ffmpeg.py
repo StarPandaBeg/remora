@@ -1,5 +1,6 @@
 import asyncio
 import json
+import math
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -7,6 +8,7 @@ from pathlib import Path
 from worker.models import ProgressValue
 
 type ProgressCallback = Callable[[ProgressValue], Awaitable[None]]
+
 
 @dataclass
 class MediaInfo:
@@ -21,6 +23,7 @@ class MediaInfo:
     audio_codec: str | None
     audio_sample_rate: int | None
     audio_channels: int | None
+
 
 async def run_ffmpeg(
     args: list[str],
@@ -63,6 +66,49 @@ async def run_ffmpeg(
 
     if progress is not None and last_percent < 100:
         await progress(100)
+
+
+async def cut_wav(
+    source: Path,
+    start: float,
+    end: float,
+    destination: Path,
+    progress: ProgressCallback | None = None,
+) -> Path:
+    """Cut an absolute time range into a mono 16 kHz PCM WAV file."""
+
+    if not math.isfinite(start) or start < 0:
+        raise ValueError("start must be a finite non-negative number")
+    if not math.isfinite(end) or end <= start:
+        raise ValueError("end must be finite and greater than start")
+
+    await asyncio.to_thread(destination.parent.mkdir, parents=True, exist_ok=True)
+    args = [
+        "ffmpeg",
+        "-ss",
+        str(start),
+        "-to",
+        str(end),
+        "-i",
+        str(source),
+        "-map",
+        "0:a:0",
+        "-vn",
+        "-ac",
+        "1",
+        "-ar",
+        "16000",
+        "-c:a",
+        "pcm_s16le",
+        "-progress",
+        "pipe:1",
+        "-nostats",
+        "-y",
+        str(destination),
+    ]
+    await run_ffmpeg(args, duration=end - start, progress=progress)
+    return destination
+
 
 async def probe_media(source_file: Path) -> MediaInfo:
     process = await asyncio.create_subprocess_exec(

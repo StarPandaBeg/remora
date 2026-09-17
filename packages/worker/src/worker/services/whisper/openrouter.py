@@ -32,13 +32,13 @@ class OpenRouterWhisperProvider(HttpWhisperProvider):
         config: WhisperConfig,
         progress: ProgressCallback | None = None,
     ) -> TranscriptionResult:
-        if not config.api_key:
-            raise ValueError("OpenRouter api_key is required")
+        if not config.openrouter_api_key:
+            raise ValueError("OpenRouter openrouter_api_key is required")
 
         base_url = (
-            config.base_url or "https://openrouter.ai/api/v1"
+            config.openrouter_base_url or "https://openrouter.ai/api/v1"
         ).rstrip("/")
-        headers = self._authorization_headers(config.api_key)
+        headers = self._authorization_headers(config.openrouter_api_key)
         if self._settings.openrouter_site_url is not None:
             headers["HTTP-Referer"] = self._settings.openrouter_site_url
         if self._settings.openrouter_app_name is not None:

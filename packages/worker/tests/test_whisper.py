@@ -8,6 +8,7 @@ from typing import Any
 import httpx
 import pytest
 
+from worker.handlers.config import OllamaWhisperConfig, OpenRouterWhisperConfig
 from worker.services.whisper import (
     LocalWhisperProvider,
     TranscriptionResult,
@@ -16,6 +17,30 @@ from worker.services.whisper import (
     WhisperService,
     WhisperSettings,
 )
+
+
+def test_pydantic_whisper_config_can_be_unpacked_into_service_config() -> None:
+    ollama_input = OllamaWhisperConfig(
+        model="whisper",
+        ollamaBaseUrl="http://ollama.test:11434",
+        ollamaApiKey="ollama-secret",
+    )
+    ollama_config = WhisperConfig(**ollama_input.model_dump())
+
+    assert ollama_config.ollama_base_url == "http://ollama.test:11434/"
+    assert ollama_config.ollama_api_key == "ollama-secret"
+
+    openrouter_input = OpenRouterWhisperConfig(
+        model="openai/whisper-1",
+        openrouterApiKey="openrouter-secret",
+    )
+    openrouter_config = WhisperConfig(**openrouter_input.model_dump())
+
+    assert openrouter_config.openrouter_base_url == (
+        "https://openrouter.ai/api/v1"
+    )
+    assert openrouter_config.openrouter_api_key == "openrouter-secret"
+    assert "openrouter-secret" not in repr(openrouter_config)
 
 
 def test_openrouter_transcription(tmp_path: Path) -> None:
@@ -41,8 +66,8 @@ def test_openrouter_transcription(tmp_path: Path) -> None:
                 WhisperConfig(
                     provider=WhisperProviderType.OPENROUTER,
                     model="openai/whisper-1",
-                    api_key="secret",
-                    base_url="https://openrouter.test/api/v1",
+                    openrouter_api_key="secret",
+                    openrouter_base_url="https://openrouter.test/api/v1",
                 ),
             )
 
@@ -79,7 +104,7 @@ def test_ollama_can_pull_and_transcribe(tmp_path: Path) -> None:
                 WhisperConfig(
                     provider=WhisperProviderType.OLLAMA,
                     model="audio-model",
-                    base_url="http://ollama.test",
+                    ollama_base_url="http://ollama.test",
                 ),
             )
 
@@ -178,7 +203,7 @@ def test_openrouter_requires_api_key(tmp_path: Path) -> None:
     wav_path.write_bytes(b"RIFF-audio")
 
     async def run() -> None:
-        with pytest.raises(ValueError, match="api_key"):
+        with pytest.raises(ValueError, match="openrouter_api_key"):
             await WhisperService().transcribe(
                 wav_path,
                 WhisperConfig(

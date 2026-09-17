@@ -1,5 +1,6 @@
 from worker.services.registry import (
     ApplicationServices,
+    get_diarization,
     get_services,
     get_storage,
     get_whisper,
@@ -7,6 +8,7 @@ from worker.services.registry import (
 
 __all__ = [
     "ApplicationServices",
+    "get_diarization",
     "get_services",
     "get_storage",
     "get_whisper",

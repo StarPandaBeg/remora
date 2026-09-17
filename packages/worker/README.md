@@ -71,10 +71,11 @@ FINAL_EVENT_RETRY_BASE_DELAY=0.25
 
 ### Настройки Whisper
 
-Пользовательская конфигурация задачи содержит provider, модель, язык,
-параметры результата транскрибации, а для удалённых provider-ов также URL и
-API-ключ. Устройство, производительность и локальные пути задаются на worker
-через `.env`:
+Пользовательская конфигурация задачи содержит provider, модель, язык и
+параметры результата транскрибации. Подключения удалённых provider-ов задаются
+раздельно: `ollama_base_url`/`ollama_api_key` и
+`openrouter_base_url`/`openrouter_api_key`. Устройство, производительность и
+локальные пути задаются на worker через `.env`:
 
 ```dotenv
 WHISPER_TIMEOUT_SECONDS=300
@@ -97,6 +98,21 @@ WHISPER_OPENROUTER_APP_NAME=Remora
 её наличии, иначе CPU. При `WHISPER_LOCAL_COMPUTE_TYPE=auto` используются
 `float16` для CUDA и `int8` для CPU. Пустые необязательные секреты и значения
 следует не добавлять в `.env`.
+
+### Настройки диаризации
+
+Модель pyannote выбирается динамически для каждого запроса. Pipeline лениво
+скачивается при первом использовании и затем кешируется общим сервисом worker.
+Инфраструктурные настройки задаются через `.env`:
+
+```dotenv
+# По умолчанию автоматически выбирается CUDA при наличии, иначе CPU.
+# DIARIZATION_DEVICE=cpu
+DIARIZATION_CACHE_DIR=.cache/pyannote
+```
+
+Для gated-модели `pyannote/speaker-diarization-community-1` пользователь должен
+принять условия на Hugging Face и передать access token в конфигурации запроса.
 
 ## Запуск в dev-режиме
 
