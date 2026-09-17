@@ -21,6 +21,7 @@ void describe('entry task creation', () => {
             type: 'video_record',
             content: null,
             metadata: { relatedTasks: [] },
+            status: 'ready',
             createdAt: now,
             updatedAt: now,
         }
@@ -38,6 +39,7 @@ void describe('entry task creation', () => {
         }
         let transactionCommitted = false
         let startedTask: TaskRun | undefined
+        let currentStatus = initialEntry.status
 
         const repositories = {
             entries: {
@@ -46,7 +48,11 @@ void describe('entry task creation', () => {
                 updateMetadata: async (
                     _id: number,
                     metadata: Entry['metadata'],
-                ) => ({ ...initialEntry, metadata }),
+                ) => ({ ...initialEntry, metadata, status: currentStatus }),
+                updateStatus: async (_id: number, status: Entry['status']) => {
+                    currentStatus = status
+                    return { ...initialEntry, status }
+                },
             },
         } as unknown as RepositoryRegistry
         const transaction: TransactionRunner = async (work) => {
@@ -80,6 +86,42 @@ void describe('entry task creation', () => {
         })
 
         assert.deepEqual(entry.metadata.relatedTasks, [task.id])
+        assert.equal(entry.status, 'processing')
         assert.equal(startedTask, task)
+    })
+})
+
+void describe('entry status update', () => {
+    void it('updates status through the dedicated repository method', async () => {
+        const updatedEntry: Entry & { artifacts: [] } = {
+            id: 5,
+            folderId: 2,
+            name: 'Video',
+            type: 'video_record',
+            content: null,
+            metadata: { relatedTasks: [] },
+            status: 'ready',
+            artifacts: [],
+            createdAt: now,
+            updatedAt: now,
+        }
+        let receivedStatus: Entry['status'] | undefined
+        const repositories = {
+            entries: {
+                updateStatus: async (_id: number, status: Entry['status']) => {
+                    receivedStatus = status
+                    return updatedEntry
+                },
+            },
+        } as unknown as RepositoryRegistry
+        const service = createEntryService({
+            files: {} as EntryFileService,
+            repositories,
+            transaction: {} as TransactionRunner,
+            orchestrator: {} as Orchestrator,
+        })
+
+        assert.equal(await service.updateStatus(5, 'ready'), updatedEntry)
+        assert.equal(receivedStatus, 'ready')
     })
 })

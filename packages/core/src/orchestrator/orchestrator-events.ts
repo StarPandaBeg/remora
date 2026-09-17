@@ -1,6 +1,7 @@
 import type { RepositoryRegistry, TransactionRunner } from '../repositories.ts'
 import { HttpError } from '../util/error.ts'
 import { globalEventBus } from '../util/event.ts'
+import type { CompletionServiceFactory } from './completion-services.ts'
 import { taskRegistry } from './tasks.ts'
 import type { PipelineContext } from './types.ts'
 import type { WorkerEvent } from './worker.ts'
@@ -9,12 +10,14 @@ interface OrchestratorEventDependencies {
     repositories: RepositoryRegistry
     transaction: TransactionRunner
     runNextStep: (taskId: number) => Promise<void>
+    createCompletionServices: CompletionServiceFactory
 }
 
 export const createOrchestratorEvents = ({
     repositories,
     transaction,
     runNextStep,
+    createCompletionServices,
 }: OrchestratorEventDependencies) => {
     const handleTaskStarted = async (
         event: Extract<WorkerEvent, { type: 'task.started' }>,
@@ -104,14 +107,19 @@ export const createOrchestratorEvents = ({
             .toSorted((a, b) => a.position - b.position)
             .find((s) => s.position === step.position + 1)
         await transaction(async (repositories) => {
-            await stepDef.onCompleted?.(ctx)
+            const completionDependencies = {
+                repositories,
+                services: createCompletionServices(repositories),
+            }
+
+            await stepDef.onCompleted?.(ctx, completionDependencies)
             await repositories.tasks.finishStep(step.id, output as object)
 
             if (nextStep) {
                 await repositories.tasks.setStepContext(nextStep.id, ctx)
             } else {
                 await repositories.tasks.finishTask(task.id)
-                await taskDef.onCompleted?.(ctx)
+                await taskDef.onCompleted?.(ctx, completionDependencies)
             }
         })
 

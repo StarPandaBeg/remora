@@ -9,6 +9,16 @@ const timestamps = {
     updatedAt: t.timestamp().defaultNow().notNull(),
 }
 export const entryType = t.pgEnum('entryType', ['note', 'video_record', 'file'])
+export const entryStatus = t.pgEnum('entryStatus', [
+    'processing',
+    'ready',
+    'failed',
+])
+export const entryArtifactFormat = t.pgEnum('entryArtifactFormat', [
+    'text',
+    'blob',
+    'json',
+])
 export const processingStatus = t.pgEnum('processingStatus', [
     'pending',
     'running',
@@ -43,6 +53,8 @@ export type EntryMetadata = Record<string, unknown> & {
     file?: StoredFileMetadata
 }
 
+export type EntryArtifactType = 'transcription'
+
 export const folders = t.snakeCase.table(
     'folders',
     {
@@ -76,12 +88,31 @@ export const entries = t.snakeCase.table(
             .$type<EntryMetadata>()
             .notNull()
             .default({ relatedTasks: [] }),
+        status: entryStatus().notNull().default('ready'),
         ...timestamps,
     },
     (table) => [t.index('entries_folder_id_idx').on(table.folderId)],
 )
 export type Entry = typeof entries.$inferSelect
 export type EntryCreate = typeof entries.$inferInsert
+
+export const entryArtifacts = t.snakeCase.table('entry_artifacts', {
+    id: t.serial().primaryKey(),
+    entryId: t
+        .integer()
+        .notNull()
+        .references(() => entries.id, {
+            onDelete: 'cascade',
+        }),
+    type: t.varchar().$type<EntryArtifactType>().notNull(),
+    format: entryArtifactFormat().notNull(),
+    name: t.varchar(),
+    content: t.text().notNull(),
+    metadata: t.jsonb().$type<JsonObject>().notNull().default({}),
+    ...timestamps,
+})
+export type EntryArtifact = typeof entryArtifacts.$inferSelect
+export type EntryArtifactCreate = typeof entryArtifacts.$inferInsert
 
 export const configEntries = t.snakeCase.table('config', {
     key: t.varchar().primaryKey(),
@@ -132,7 +163,7 @@ export type TaskStep = typeof taskSteps.$inferSelect & { task?: TaskRun }
 export type TaskStepCreate = typeof taskSteps.$inferInsert
 
 export const relations = defineRelations(
-    { folders, entries, configEntries, taskRuns, taskSteps },
+    { folders, entries, configEntries, taskRuns, taskSteps, entryArtifacts },
     (r) => ({
         folders: {
             parent: r.one.folders({
@@ -148,6 +179,7 @@ export const relations = defineRelations(
                 to: r.folders.id,
             }),
             tasks: r.many.taskRuns(),
+            artifacts: r.many.entryArtifacts(),
         },
         taskRuns: {
             entry: r.one.entries({
@@ -160,6 +192,12 @@ export const relations = defineRelations(
             task: r.one.taskRuns({
                 from: r.taskSteps.runId,
                 to: r.taskRuns.id,
+            }),
+        },
+        entryArtifacts: {
+            entry: r.one.entries({
+                from: r.entryArtifacts.entryId,
+                to: r.entries.id,
             }),
         },
     }),

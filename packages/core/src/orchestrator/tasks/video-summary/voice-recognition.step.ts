@@ -49,6 +49,7 @@ export const VoiceRecognitionStep: StepDefinition<
         return {
             ...ctx,
             voiceRecognition: {
+                bucket: output.bucket,
                 transcriptionKey: output.transcriptionKey,
                 language: output.language,
             },

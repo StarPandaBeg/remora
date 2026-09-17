@@ -1,4 +1,4 @@
-import type { EntryCreate } from '../../database/schema.ts'
+import type { Entry, EntryCreate } from '../../database/schema.ts'
 import type { Orchestrator } from '../../orchestrator/orchestrator.ts'
 import type {
     RepositoryRegistry,
@@ -48,12 +48,27 @@ interface EntryServiceDependencies {
     orchestrator: Orchestrator
 }
 
+export function createEntryStatusService(
+    entryRepository: Pick<RepositoryRegistry['entries'], 'updateStatus'>,
+) {
+    const updateStatus = async (id: number, status: Entry['status']) => {
+        const entry = await entryRepository.updateStatus(id, status)
+        if (!entry) {
+            throw new HttpError('ENTRY_NOT_FOUND', `Entry ${id} was not found`)
+        }
+        return entry
+    }
+
+    return { updateStatus }
+}
+
 export function createEntryService({
     files,
     repositories,
     transaction,
     orchestrator,
 }: EntryServiceDependencies) {
+    const { updateStatus } = createEntryStatusService(repositories.entries)
     const ensureEntryExists = async (id: number) => {
         const entry = await repositories.entries.findById(id)
         if (!entry) {
@@ -108,6 +123,21 @@ export function createEntryService({
             const createdTasks = []
             for (const t of tasks) {
                 createdTasks.push(await o.createTaskForEntry(entry, t, false))
+            }
+            if (createdTasks.length > 0) {
+                const processingEntry =
+                    await transactionRepositories.entries.updateStatus(
+                        entry.id,
+                        'processing',
+                    )
+                if (processingEntry === undefined) {
+                    throw new HttpError(
+                        'ENTRY_STATUS_UPDATE_FAILED',
+                        `Entry ${entry.id} status could not be updated`,
+                        500,
+                    )
+                }
+                entry = processingEntry
             }
 
             const entryWithTasks =
@@ -208,5 +238,6 @@ export function createEntryService({
         move,
         remove,
         update,
+        updateStatus,
     }
 }

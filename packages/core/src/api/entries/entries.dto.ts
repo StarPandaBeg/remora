@@ -1,7 +1,23 @@
 import { z } from 'zod/v4'
 
-import type { Entry, EntryMetadata } from '../../database/schema.ts'
+import {
+    entryArtifactFormat,
+    entryStatus,
+    type Entry,
+    type EntryArtifact,
+    type EntryMetadata,
+} from '../../database/schema.ts'
 import type { EntryTreeNode } from './entries.service.ts'
+
+export interface EntryArtifactDto {
+    id: number
+    entryId: number
+    type: EntryArtifact['type']
+    format: EntryArtifact['format']
+    name: string | null
+    content: EntryArtifact['content']
+    metadata: EntryArtifact['metadata']
+}
 
 export interface EntryDto {
     id: number
@@ -10,6 +26,8 @@ export interface EntryDto {
     type: Entry['type']
     content: string | null
     metadata: EntryMetadata
+    status: Entry['status']
+    artifacts: EntryArtifactDto[]
 }
 
 export type EntryTreeDto =
@@ -30,6 +48,8 @@ export type EntryTreeDto =
           type: Entry['type']
           content: string | null
           metadata: EntryMetadata
+          status: Entry['status']
+          artifacts: EntryArtifactDto[]
           depth: number
       }
 
@@ -51,6 +71,16 @@ export const entryMetadataSchema: z.ZodType<EntryMetadata> = z
     })
     .catchall(z.unknown())
 
+export const entryArtifactDtoSchema: z.ZodType<EntryArtifactDto> = z.object({
+    id: z.number().int().positive(),
+    entryId: z.number().int().positive(),
+    type: z.literal('transcription'),
+    format: z.enum(entryArtifactFormat.enumValues),
+    name: z.string().nullable(),
+    content: z.string(),
+    metadata: z.record(z.string(), z.json()),
+})
+
 export const entryDtoSchema: z.ZodType<EntryDto> = z.object({
     id: z.number().int().positive(),
     folderId: z.number().int().positive(),
@@ -58,6 +88,8 @@ export const entryDtoSchema: z.ZodType<EntryDto> = z.object({
     type: z.enum(['note', 'video_record', 'file']),
     content: z.string().nullable(),
     metadata: entryMetadataSchema,
+    status: z.enum(entryStatus.enumValues),
+    artifacts: z.array(entryArtifactDtoSchema),
 })
 
 export const entryTreeDtoSchema: z.ZodType<EntryTreeDto> = z.lazy(() =>
@@ -79,15 +111,32 @@ export const entryTreeDtoSchema: z.ZodType<EntryTreeDto> = z.lazy(() =>
             type: z.enum(['note', 'video_record', 'file']),
             content: z.string().nullable(),
             metadata: entryMetadataSchema,
+            status: z.enum(entryStatus.enumValues),
+            artifacts: z.array(entryArtifactDtoSchema),
             depth: z.number().int().min(0),
         }),
     ]),
 )
 
 z.globalRegistry.add(entryDtoSchema, { id: 'Entry' })
+z.globalRegistry.add(entryArtifactDtoSchema, { id: 'EntryArtifact' })
 z.globalRegistry.add(entryTreeDtoSchema, { id: 'EntryTreeNode' })
 
-export function toEntryDto(entry: Entry): EntryDto {
+type EntryWithOptionalArtifacts = Entry & { artifacts?: EntryArtifactDto[] }
+
+function toEntryArtifactDto(artifact: EntryArtifactDto): EntryArtifactDto {
+    return {
+        id: artifact.id,
+        entryId: artifact.entryId,
+        type: artifact.type,
+        format: artifact.format,
+        name: artifact.name,
+        content: artifact.content,
+        metadata: artifact.metadata,
+    }
+}
+
+export function toEntryDto(entry: EntryWithOptionalArtifacts): EntryDto {
     return {
         id: entry.id,
         folderId: entry.folderId,
@@ -95,6 +144,8 @@ export function toEntryDto(entry: Entry): EntryDto {
         type: entry.type,
         content: entry.content,
         metadata: entry.metadata,
+        status: entry.status,
+        artifacts: (entry.artifacts ?? []).map(toEntryArtifactDto),
     }
 }
 
@@ -108,6 +159,8 @@ export function toEntryTreeDto(node: EntryTreeNode): EntryTreeDto {
             type: node.type,
             content: node.content,
             metadata: node.metadata,
+            status: node.status,
+            artifacts: node.artifacts.map(toEntryArtifactDto),
             depth: node.depth,
         }
     }

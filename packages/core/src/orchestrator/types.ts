@@ -1,9 +1,16 @@
 import type { RuntimeConfig } from '../api/config/types.ts'
 import type { Entry } from '../database/schema.ts'
+import type { RepositoryRegistry } from '../repositories.ts'
 import type { JsonObject } from '../types/json.ts'
+import type { CompletionServiceRegistry } from './completion-services.ts'
 
 export type PipelineContext = Record<string, unknown>
 export type PipelineAny = StepDefinition<PipelineContext, object, unknown>[]
+
+export interface PipelineCompletionDependencies {
+    repositories: RepositoryRegistry
+    services: CompletionServiceRegistry
+}
 
 export interface TaskDefinition {
     type: string
@@ -12,7 +19,10 @@ export interface TaskDefinition {
     buildContext: (entry: Entry) => Promise<PipelineContext>
     selectConfig: (config: RuntimeConfig) => JsonObject
 
-    onCompleted?(ctx: PipelineContext): Promise<void>
+    onCompleted?(
+        ctx: PipelineContext,
+        dependencies: PipelineCompletionDependencies,
+    ): Promise<void>
 }
 
 export interface StepDefinition<C extends PipelineContext, I, O> {
@@ -22,7 +32,10 @@ export interface StepDefinition<C extends PipelineContext, I, O> {
     validateOutput(output: unknown): Promise<O>
     updateContext(ctx: C, output: O): Promise<C>
 
-    onCompleted?(ctx: C): Promise<void>
+    onCompleted?(
+        ctx: C,
+        dependencies: PipelineCompletionDependencies,
+    ): Promise<void>
 }
 
 export type { Worker, WorkerTaskCommand } from './worker.ts'

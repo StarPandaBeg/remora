@@ -14,6 +14,7 @@ export interface TaskContext extends PipelineContext {
         manifestKey: string
     }
     voiceRecognition?: {
+        bucket: string
         transcriptionKey: string
         language: string
     }
@@ -62,7 +63,26 @@ export const VideoRecordSummaryTask: TaskDefinition = {
             useExclusive: config['video_record.diarization.exclusive'],
         },
     }),
+
     buildContext: async (entry) => {
         return { entry }
+    },
+
+    onCompleted: async (ctx, { services }) => {
+        const taskContext = ctx as TaskContext
+
+        await services.entryArtifacts.create({
+            entryId: taskContext.entry.id,
+            type: 'transcription',
+            format: 'blob',
+            name: 'Транскрипция',
+            content: taskContext.voiceRecognition!.transcriptionKey,
+            metadata: {
+                bucket: taskContext.voiceRecognition!.bucket,
+                language: taskContext.voiceRecognition!.language,
+            },
+        })
+
+        await services.entries.updateStatus(taskContext.entry.id, 'ready')
     },
 }

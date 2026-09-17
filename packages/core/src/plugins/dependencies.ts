@@ -4,6 +4,7 @@ import fastifyPlugin from 'fastify-plugin'
 import { createRuntimeConfigService } from '../api/config/config.ts'
 import type { AppConfig } from '../config.ts'
 import { createDatabase, type AppDatabase } from '../database/index.ts'
+import { createCompletionServices } from '../orchestrator/completion-services.ts'
 import { createOrchestrator } from '../orchestrator/orchestrator.ts'
 import { createWorker } from '../orchestrator/worker.ts'
 import { createRepositories, createTransactionRunner } from '../repositories.ts'
@@ -40,6 +41,7 @@ const dependenciesPlugin: FastifyPluginAsync<DependencyOptions> = async (
         transaction,
         worker,
         runtimeConfig,
+        createCompletionServices,
     )
     const services = createServices({
         publicBaseUrl: options.config.publicBaseUrl,

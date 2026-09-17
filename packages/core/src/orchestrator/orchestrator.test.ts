@@ -10,6 +10,7 @@ import type {
     TaskStep,
 } from '../database/schema.ts'
 import type { RepositoryRegistry, TransactionRunner } from '../repositories.ts'
+import { createCompletionServices } from './completion-services.ts'
 import {
     createOrchestrator,
     type RuntimeConfigProvider,
@@ -39,6 +40,7 @@ function createEntry(): Entry {
                 disposition: 'inline',
             },
         },
+        status: 'ready',
         createdAt: now,
         updatedAt: now,
     }
@@ -126,6 +128,7 @@ function createHarness(options: HarnessOptions) {
             },
         },
         createRuntimeConfigStub(),
+        createCompletionServices,
     )
 
     return {
@@ -173,6 +176,7 @@ void describe('orchestrator worker dispatch', () => {
                 },
             },
             createRuntimeConfigStub(),
+            createCompletionServices,
         )
 
         await orchestrator.runTask(pendingTask)
@@ -302,6 +306,7 @@ void describe('task configuration snapshot', () => {
             transaction,
             { execute: async () => undefined },
             runtimeConfig,
+            createCompletionServices,
         )
 
         const first = await orchestrator.createTaskForEntry(

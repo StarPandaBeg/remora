@@ -5,6 +5,7 @@ import {
     entries,
     folders,
     type Entry,
+    type EntryArtifact,
     type EntryCreate,
     type EntryMetadata,
 } from '../../database/schema.ts'
@@ -32,6 +33,11 @@ export type EntryTreeRow = {
     description: null
     content: string | null
     metadata: EntryMetadata
+    status: Entry['status']
+    artifacts: Pick<
+        EntryArtifact,
+        'id' | 'entryId' | 'type' | 'format' | 'name' | 'content' | 'metadata'
+    >[]
     depth: number
 }
 
@@ -48,6 +54,7 @@ export function createEntryRepository(db: DbExecutor) {
             where: {
                 id,
             },
+            with: { artifacts: true },
         })
     }
 
@@ -64,20 +71,17 @@ export function createEntryRepository(db: DbExecutor) {
         return folder !== undefined
     }
 
-    const update = async (
-        id: number,
-        values: UpdateEntryInput,
-    ): Promise<Entry | undefined> => {
-        const [entry] = await db
+    const update = async (id: number, values: UpdateEntryInput) => {
+        const [updated] = await db
             .update(entries)
             .set({
                 ...values,
                 updatedAt: new Date(),
             })
             .where(eq(entries.id, id))
-            .returning()
+            .returning({ id: entries.id })
 
-        return entry
+        return updated === undefined ? undefined : await findById(updated.id)
     }
 
     const updateMetadata = async (
@@ -93,20 +97,27 @@ export function createEntryRepository(db: DbExecutor) {
         return entry
     }
 
-    const move = async (
-        id: number,
-        folderId: number,
-    ): Promise<Entry | undefined> => {
-        const [entry] = await db
+    const updateStatus = async (id: number, status: Entry['status']) => {
+        const [updated] = await db
+            .update(entries)
+            .set({ status, updatedAt: new Date() })
+            .where(eq(entries.id, id))
+            .returning({ id: entries.id })
+
+        return updated === undefined ? undefined : await findById(updated.id)
+    }
+
+    const move = async (id: number, folderId: number) => {
+        const [updated] = await db
             .update(entries)
             .set({
                 folderId,
                 updatedAt: new Date(),
             })
             .where(eq(entries.id, id))
-            .returning()
+            .returning({ id: entries.id })
 
-        return entry
+        return updated === undefined ? undefined : await findById(updated.id)
     }
 
     const remove = async (id: number): Promise<Entry | undefined> => {
@@ -166,6 +177,8 @@ export function createEntryRepository(db: DbExecutor) {
                     NULL::text AS "content",
                     NULL::"entryType" AS "type",
                     NULL::jsonb AS "metadata",
+                    NULL::"entryStatus" AS "status",
+                    '[]'::jsonb AS "artifacts",
                     folder_tree."depth" AS "depth"
                 FROM folder_tree
 
@@ -180,6 +193,26 @@ export function createEntryRepository(db: DbExecutor) {
                     ${entries.content} AS "content",
                     ${entries.type} AS "type",
                     ${entries.metadata} AS "metadata",
+                    ${entries.status} AS "status",
+                    COALESCE(
+                        (
+                            SELECT jsonb_agg(
+                                jsonb_build_object(
+                                    'id', artifact.id,
+                                    'entryId', artifact.entry_id,
+                                    'type', artifact.type,
+                                    'format', artifact.format,
+                                    'name', artifact.name,
+                                    'content', artifact.content,
+                                    'metadata', artifact.metadata
+                                )
+                                ORDER BY artifact.id
+                            )
+                            FROM entry_artifacts AS artifact
+                            WHERE artifact.entry_id = ${entries.id}
+                        ),
+                        '[]'::jsonb
+                    ) AS "artifacts",
                     folder_tree."depth" + 1 AS "depth"
                 FROM ${entries}
                 INNER JOIN folder_tree
@@ -204,5 +237,6 @@ export function createEntryRepository(db: DbExecutor) {
         remove,
         update,
         updateMetadata,
+        updateStatus,
     }
 }

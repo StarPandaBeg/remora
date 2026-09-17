@@ -7,6 +7,7 @@ import type {
 } from '../database/schema.ts'
 import type { RepositoryRegistry, TransactionRunner } from '../repositories.ts'
 import { HttpError } from '../util/error.ts'
+import type { CompletionServiceFactory } from './completion-services.ts'
 import { createOrchestratorEvents } from './orchestrator-events.ts'
 import { taskRegistry, type TaskType } from './tasks.ts'
 import type { PipelineContext } from './types.ts'
@@ -25,6 +26,7 @@ export const createOrchestrator = (
     transaction: TransactionRunner,
     worker: Pick<Worker, 'execute'>,
     runtimeConfig: RuntimeConfigProvider,
+    createCompletionServices: CompletionServiceFactory,
 ) => {
     const dummyTransaction = (
         f: (r: RepositoryRegistry) => Promise<void>,
@@ -204,6 +206,7 @@ export const createOrchestrator = (
         repositories,
         transaction,
         runNextStep,
+        createCompletionServices,
     })
 
     const withRepositories = (
@@ -216,6 +219,7 @@ export const createOrchestrator = (
             nextTransaction,
             worker,
             runtimeConfig.withRepositories(repositories, nextTransaction),
+            createCompletionServices,
         )
     }
 

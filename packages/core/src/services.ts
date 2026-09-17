@@ -3,6 +3,7 @@ import { createEntryService } from './api/entries/entries.service.ts'
 import { createEntryFileService } from './api/entries/entry-files.service.ts'
 import { createFolderService } from './api/folders/folders.service.ts'
 import { createTaskService } from './api/tasks/tasks.service.ts'
+import { createCompletionServices } from './orchestrator/completion-services.ts'
 import type { Orchestrator } from './orchestrator/orchestrator.ts'
 import type { RepositoryRegistry, TransactionRunner } from './repositories.ts'
 import type { ObjectStorage } from './storage/object-storage.ts'
@@ -21,6 +22,9 @@ export function createServices(dependencies: ServiceDependencies) {
         publicBaseUrl: dependencies.publicBaseUrl,
         storage: dependencies.storage,
     })
+    const completionServices = createCompletionServices(
+        dependencies.repositories,
+    )
 
     return {
         config: dependencies.runtimeConfig,
@@ -30,6 +34,7 @@ export function createServices(dependencies: ServiceDependencies) {
             transaction: dependencies.transaction,
             orchestrator: dependencies.orchestrator,
         }),
+        entryArtifacts: completionServices.entryArtifacts,
         files,
         folders: createFolderService(dependencies.repositories.folders),
         tasks: createTaskService({
