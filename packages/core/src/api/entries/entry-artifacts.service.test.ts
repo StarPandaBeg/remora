@@ -109,4 +109,49 @@ void describe('entry artifact service', () => {
         assert.equal(updated.type, artifact.type)
         assert.equal(updated.format, artifact.format)
     })
+
+    void it('updates the name and content of a text artifact', async () => {
+        let receivedInput: unknown
+        const repositories = {
+            entries: {},
+            entryArtifacts: {
+                findById: async () => artifact,
+                updateText: async (_id: number, input: unknown) => {
+                    receivedInput = input
+                    return { ...artifact, ...(input as object) }
+                },
+            },
+        } as unknown as RepositoryRegistry
+        const service = createEntryArtifactService({ repositories })
+        const input = { name: 'Edited transcript', content: 'Edited text' }
+
+        const updated = await service.updateText(artifact.id, input)
+
+        assert.deepEqual(receivedInput, input)
+        assert.equal(updated.name, input.name)
+        assert.equal(updated.content, input.content)
+    })
+
+    void it('rejects editing a non-text artifact', async () => {
+        let updateCalled = false
+        const repositories = {
+            entries: {},
+            entryArtifacts: {
+                findById: async () => ({ ...artifact, format: 'blob' }),
+                updateText: async () => {
+                    updateCalled = true
+                    return artifact
+                },
+            },
+        } as unknown as RepositoryRegistry
+        const service = createEntryArtifactService({ repositories })
+
+        await assert.rejects(
+            service.updateText(artifact.id, { content: 'Edited text' }),
+            (error: Error & { code?: string; statusCode?: number }) =>
+                error.code === 'ENTRY_ARTIFACT_NOT_TEXT' &&
+                error.statusCode === 409,
+        )
+        assert.equal(updateCalled, false)
+    })
 })

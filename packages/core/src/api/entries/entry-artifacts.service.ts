@@ -3,6 +3,7 @@ import { HttpError } from '../../util/error.ts'
 import type {
     CreateEntryArtifactInput,
     UpdateEntryArtifactContentInput,
+    UpdateTextEntryArtifactInput,
 } from './entry-artifacts.model.ts'
 
 export interface EntryArtifactServiceDependencies {
@@ -66,11 +67,35 @@ export function createEntryArtifactService({
         return artifact
     }
 
+    const updateText = async (
+        id: number,
+        input: UpdateTextEntryArtifactInput,
+    ) => {
+        const current = await getById(id)
+        if (current.format !== 'text') {
+            throw new HttpError(
+                'ENTRY_ARTIFACT_NOT_TEXT',
+                `Entry artifact ${id} is not a text artifact`,
+                409,
+            )
+        }
+
+        const artifact = await repositories.entryArtifacts.updateText(id, input)
+        if (!artifact) {
+            throw new HttpError(
+                'ENTRY_ARTIFACT_NOT_FOUND',
+                `Entry artifact ${id} was not found`,
+            )
+        }
+        return artifact
+    }
+
     return {
         create,
         getById,
         getForEntry,
         updateContentAndMetadata,
+        updateText,
     }
 }
 

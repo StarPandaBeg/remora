@@ -1,4 +1,4 @@
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 import type { DbExecutor } from '../../database/index.ts'
 import {
@@ -16,6 +16,10 @@ export type CreateEntryArtifactInput = Pick<
 export type UpdateEntryArtifactContentInput = Pick<
     EntryArtifact,
     'content' | 'metadata'
+>
+
+export type UpdateTextEntryArtifactInput = Partial<
+    Pick<EntryArtifact, 'content' | 'name'>
 >
 
 export function createEntryArtifactRepository(db: DbExecutor) {
@@ -56,11 +60,30 @@ export function createEntryArtifactRepository(db: DbExecutor) {
         return artifact
     }
 
+    const updateText = async (
+        id: number,
+        values: UpdateTextEntryArtifactInput,
+    ) => {
+        const [artifact] = await db
+            .update(entryArtifacts)
+            .set({ ...values, updatedAt: new Date() })
+            .where(
+                and(
+                    eq(entryArtifacts.id, id),
+                    eq(entryArtifacts.format, 'text'),
+                ),
+            )
+            .returning()
+
+        return artifact
+    }
+
     return {
         create,
         findByEntryId,
         findById,
         updateContentAndMetadata,
+        updateText,
     }
 }
 

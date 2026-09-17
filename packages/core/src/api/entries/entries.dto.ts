@@ -1,23 +1,18 @@
 import { z } from 'zod/v4'
 
 import {
-    entryArtifactFormat,
     entryStatus,
     type Entry,
-    type EntryArtifact,
     type EntryMetadata,
 } from '../../database/schema.ts'
 import type { EntryTreeNode } from './entries.service.ts'
+import {
+    entryArtifactDtoSchema,
+    toEntryArtifactDto,
+    type EntryArtifactDto,
+} from './entry-artifacts.dto.ts'
 
-export interface EntryArtifactDto {
-    id: number
-    entryId: number
-    type: EntryArtifact['type']
-    format: EntryArtifact['format']
-    name: string | null
-    content: EntryArtifact['content']
-    metadata: EntryArtifact['metadata']
-}
+export { entryArtifactDtoSchema, type EntryArtifactDto }
 
 export interface EntryDto {
     id: number
@@ -71,16 +66,6 @@ export const entryMetadataSchema: z.ZodType<EntryMetadata> = z
     })
     .catchall(z.unknown())
 
-export const entryArtifactDtoSchema: z.ZodType<EntryArtifactDto> = z.object({
-    id: z.number().int().positive(),
-    entryId: z.number().int().positive(),
-    type: z.literal('transcription'),
-    format: z.enum(entryArtifactFormat.enumValues),
-    name: z.string().nullable(),
-    content: z.string(),
-    metadata: z.record(z.string(), z.json()),
-})
-
 export const entryDtoSchema: z.ZodType<EntryDto> = z.object({
     id: z.number().int().positive(),
     folderId: z.number().int().positive(),
@@ -119,22 +104,9 @@ export const entryTreeDtoSchema: z.ZodType<EntryTreeDto> = z.lazy(() =>
 )
 
 z.globalRegistry.add(entryDtoSchema, { id: 'Entry' })
-z.globalRegistry.add(entryArtifactDtoSchema, { id: 'EntryArtifact' })
 z.globalRegistry.add(entryTreeDtoSchema, { id: 'EntryTreeNode' })
 
 type EntryWithOptionalArtifacts = Entry & { artifacts?: EntryArtifactDto[] }
-
-function toEntryArtifactDto(artifact: EntryArtifactDto): EntryArtifactDto {
-    return {
-        id: artifact.id,
-        entryId: artifact.entryId,
-        type: artifact.type,
-        format: artifact.format,
-        name: artifact.name,
-        content: artifact.content,
-        metadata: artifact.metadata,
-    }
-}
 
 export function toEntryDto(entry: EntryWithOptionalArtifacts): EntryDto {
     return {
